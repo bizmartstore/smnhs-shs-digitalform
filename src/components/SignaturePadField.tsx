@@ -59,7 +59,7 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
     return (
       <div className="space-y-2">
         <div className="text-sm font-medium">{label}</div>
-        <div className="relative rounded-md border bg-white overflow-hidden">
+        <div className={`relative rounded-md border-2 bg-white overflow-hidden transition-colors ${invalid ? "border-destructive ring-2 ring-destructive/30" : "border-input"}`}>
           <canvas
             ref={canvasRef}
             className="block w-full h-40 touch-none"
