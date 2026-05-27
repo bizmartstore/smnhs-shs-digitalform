@@ -257,7 +257,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
           <CardTitle className="text-base">Enrollment Database ({filtered.length})</CardTitle>
           <div className="flex gap-2">
-            <Input placeholder="Search name, LRN, section…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-64" />
+            <Input placeholder="Search name, LRN, control no…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-64" />
             <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />CSV</Button>
             <Button variant="outline" size="sm" onClick={onRefresh}>Refresh</Button>
           </div>
