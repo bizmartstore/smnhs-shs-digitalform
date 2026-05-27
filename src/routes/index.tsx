@@ -16,7 +16,7 @@ import { Footer } from "@/components/Footer";
 import { SignaturePadField, type SignaturePadHandle } from "@/components/SignaturePadField";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
 
@@ -218,6 +218,19 @@ function EnrollmentPage() {
         <form onSubmit={submit} noValidate className="space-y-6">
 
           <Section title="I. Learner Information">
+            <div className="rounded-lg border-l-4 border-primary bg-primary/5 p-4 space-y-2">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <p className="text-sm font-medium text-foreground">How to fill out this form:</p>
+              </div>
+              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+                <li>Enter all information accurately and completely.</li>
+                <li>Fields marked with <span className="text-destructive font-semibold">*</span> are required and must not be left blank.</li>
+                <li>Type all text in <strong>CAPITAL LETTERS</strong>.</li>
+                <li>If you do not know what to enter, ask your <strong>assigned teacher</strong> for assistance.</li>
+                <li>Review everything before submitting.</li>
+              </ul>
+            </div>
             <Grid>
               <Field label="Last Name *"><Input className={cls("last_name", "uppercase-input")} value={form.last_name} onChange={handleText("last_name")} /></Field>
               <Field label="First Name *"><Input className={cls("first_name", "uppercase-input")} value={form.first_name} onChange={handleText("first_name")} /></Field>
