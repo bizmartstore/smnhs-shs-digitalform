@@ -234,7 +234,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
     const s = q.trim().toLowerCase();
     if (!s) return enrollments;
     return enrollments.filter((e: any) =>
-      [e.last_name, e.first_name, e.lrn, e.previous_section, e.strand]
+      [e.last_name, e.first_name, e.lrn, e.previous_section, e.strand, e.control_no, `smnhs-${String(e.control_no ?? "").padStart(5, "0")}`]
         .some((v) => String(v ?? "").toLowerCase().includes(s)),
     );
   }, [enrollments, q]);
@@ -257,7 +257,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
           <CardTitle className="text-base">Enrollment Database ({filtered.length})</CardTitle>
           <div className="flex gap-2">
-            <Input placeholder="Search name, LRN, section…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-64" />
+            <Input placeholder="Search name, LRN, control no…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-64" />
             <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4 mr-1" />CSV</Button>
             <Button variant="outline" size="sm" onClick={onRefresh}>Refresh</Button>
           </div>
@@ -269,6 +269,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Control #</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>LRN</TableHead>
                   <TableHead>Prev. Section</TableHead>
@@ -281,6 +282,9 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
               <TableBody>
                 {filtered.map((e: any) => (
                   <TableRow key={e.id}>
+                    <TableCell className="font-mono text-xs font-semibold text-primary">
+                      {e.control_no ? `SMNHS-${String(e.control_no).padStart(5, "0")}` : "—"}
+                    </TableCell>
                     <TableCell className="font-medium">{e.last_name}, {e.first_name}</TableCell>
                     <TableCell className="font-mono text-xs">{e.lrn || "—"}</TableCell>
                     <TableCell>{e.previous_section}</TableCell>
@@ -293,7 +297,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

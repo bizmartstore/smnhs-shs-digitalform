@@ -14,9 +14,10 @@ import { toast, Toaster } from "sonner";
 import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
 import { SignaturePadField, type SignaturePadHandle } from "@/components/SignaturePadField";
+import { RegistrationTicket } from "@/components/RegistrationTicket";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
-import { CheckCircle2, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
 
@@ -189,22 +190,15 @@ function EnrollmentPage() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <SchoolHeader subtitle="Incoming Grade 12 · SY 2026" />
-        <main className="flex-1 mx-auto max-w-2xl w-full px-4 py-16 text-center">
-          <CheckCircle2 className="mx-auto h-16 w-16 text-green-600" />
-          <h2 className="mt-4 text-2xl font-bold">Enrollment Submitted!</h2>
-          <p className="mt-2 text-muted-foreground">Your reference / control number:</p>
-          <p className="mt-1 text-xl font-mono font-bold text-primary">{done}</p>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Please screenshot this page. Visit the Registrar's Office for verification.
-          </p>
-          <Button className="mt-6" onClick={() => { setForm(INITIAL); setDone(null); setInvalid(new Set()); }}>
-            Submit Another Enrollment
-          </Button>
-        </main>
-        <Footer />
-      </div>
+      <RegistrationTicket
+        control={done}
+        learnerName={`${form.first_name} ${form.middle_name ? form.middle_name + " " : ""}${form.last_name}`.trim()}
+        track={form.track}
+        strand={form.strand}
+        previousSection={isOldStudent ? form.previous_section : "—"}
+        studentType={form.student_type}
+        onAgain={() => { setForm(INITIAL); setDone(null); setInvalid(new Set()); }}
+      />
     );
   }
 
