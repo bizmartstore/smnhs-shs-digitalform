@@ -15,6 +15,8 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
   function SignaturePadField({ label, invalid, onChangeStroke }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const padRef = useRef<SignaturePad | null>(null);
+    const onStrokeRef = useRef(onChangeStroke);
+    onStrokeRef.current = onChangeStroke;
 
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -31,23 +33,24 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
         if (data) padRef.current?.fromData(data);
       };
 
-      padRef.current = new SignaturePad(canvas, {
+      const pad = new SignaturePad(canvas, {
         backgroundColor: "rgb(255,255,255)",
         penColor: "rgb(0,0,0)",
         minWidth: 0.6,
         maxWidth: 2.2,
         throttle: 8,
       });
-      if (onChangeStroke) {
-        padRef.current.addEventListener("endStroke", onChangeStroke);
-      }
+      padRef.current = pad;
+      const handler = () => onStrokeRef.current?.();
+      pad.addEventListener("endStroke", handler);
       resize();
       window.addEventListener("resize", resize);
       return () => {
         window.removeEventListener("resize", resize);
-        padRef.current?.off();
+        pad.removeEventListener("endStroke", handler);
+        pad.off();
       };
-    }, [onChangeStroke]);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       isEmpty: () => padRef.current?.isEmpty() ?? true,
