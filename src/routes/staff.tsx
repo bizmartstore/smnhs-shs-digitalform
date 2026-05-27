@@ -482,6 +482,16 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
     onRefresh();
   }
 
+  const documentSummary = (e: any) => {
+    const docs: string[] = [];
+    if (e.doc_sf9) docs.push("SF9");
+    if (e.doc_psa) docs.push("PSA");
+    if (e.doc_cor) docs.push("COR");
+    if (e.doc_a5) docs.push("A5");
+    if (e.doc_other) docs.push(e.other_documents ? `OTHER: ${e.other_documents}` : "OTHER");
+    return docs.length ? docs.join(", ") : "None";
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -506,6 +516,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                   <TableHead>Prev. Section</TableHead>
                   <TableHead>Strand</TableHead>
                   <TableHead>Contact</TableHead>
+                  <TableHead>Documents</TableHead>
                   <TableHead>Verification</TableHead>
                   <TableHead>Assigned</TableHead>
                   <TableHead>Actions</TableHead>
@@ -522,6 +533,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                     <TableCell>{e.previous_section}</TableCell>
                     <TableCell>{e.strand}</TableCell>
                     <TableCell>{e.contact_number}</TableCell>
+                    <TableCell className="text-xs">{documentSummary(e)}</TableCell>
                     <TableCell>
                       {e.is_verified ? (
                         <div className="space-y-1">
@@ -558,7 +570,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -596,13 +608,19 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
 
 function EnrollmentDetail({ data }: { data: any }) {
   const skip = new Set(["signature_data", "learner_signature_data", "guardian_signature_data"]);
+  const displayValue = (key: string, value: any) => {
+    if (["doc_sf9", "doc_psa", "doc_other", "doc_cor", "doc_a5", "certified", "is_verified"].includes(key)) {
+      return value ? "YES" : "NO";
+    }
+    return String(value ?? "—");
+  };
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 text-sm">
         {Object.entries(data).filter(([k]) => !skip.has(k)).map(([k, v]) => (
           <div key={k} className="border rounded p-2">
             <div className="text-[10px] uppercase text-muted-foreground">{k}</div>
-            <div className="font-medium break-words">{String(v ?? "—")}</div>
+            <div className="font-medium break-words">{displayValue(k, v)}</div>
           </div>
         ))}
       </div>

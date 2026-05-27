@@ -20,6 +20,8 @@ import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
 import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
+const OLD_STUDENT_PREVIOUS_SCHOOL = "SANTA MONICA NATIONAL HIGH SCHOOL";
+const OLD_STUDENT_PREVIOUS_SCHOOL_ADDRESS = "BRGY. STA. MONICA, PPC";
 
 const UPPER_FIELDS = new Set([
   "last_name", "first_name", "middle_name", "extension_name",
@@ -44,7 +46,7 @@ const INITIAL: FormState = {
   mother_name: "", mother_occupation: "", mother_contact: "",
   guardian_name: "", guardian_relationship: "", guardian_contact: "",
   student_type: "Old Student",
-  previous_school: "", previous_school_address: "",
+  previous_school: OLD_STUDENT_PREVIOUS_SCHOOL, previous_school_address: OLD_STUDENT_PREVIOUS_SCHOOL_ADDRESS,
   previous_section: "", status: "Regular", irregular_reason: "",
   preferred_program: "Regular Class Program",
   track: "Academic Track", strand: "STEM",
@@ -262,7 +264,7 @@ function EnrollmentPage() {
               <Field label="Mother's Name *"><Input className={cls("mother_name", "uppercase-input")} value={form.mother_name} onChange={handleText("mother_name")} /></Field>
               <Field label="Mother's Occupation *"><Input className={cls("mother_occupation", "uppercase-input")} value={form.mother_occupation} onChange={handleText("mother_occupation")} /></Field>
               <Field label="Mother's Contact Number *"><Input className={cls("mother_contact")} value={form.mother_contact} onChange={(e) => set("mother_contact", e.target.value)} /></Field>
-              <Field label="Legal Guardian's Name"><Input className={cls("guardian_name", "uppercase-input")} value={form.guardian_name} onChange={handleText("guardian_name")} /></Field>
+              <Field label="Legal Guardian's Name *"><Input className={cls("guardian_name", "uppercase-input")} value={form.guardian_name} onChange={handleText("guardian_name")} /></Field>
               <Field label="Relationship to Learner *"><Input className={cls("guardian_relationship", "uppercase-input")} value={form.guardian_relationship} onChange={handleText("guardian_relationship")} /></Field>
               <Field label="Guardian's Contact Number *"><Input className={cls("guardian_contact")} value={form.guardian_contact} onChange={(e) => set("guardian_contact", e.target.value)} /></Field>
             </Grid>
@@ -274,6 +276,10 @@ function EnrollmentPage() {
                 value={form.student_type}
                 onValueChange={(v) => {
                   set("student_type", v);
+                    if (v === "Old Student") {
+                      set("previous_school", OLD_STUDENT_PREVIOUS_SCHOOL);
+                      set("previous_school_address", OLD_STUDENT_PREVIOUS_SCHOOL_ADDRESS);
+                    }
                   if (v !== "Old Student") clearInvalid("previous_section");
                 }}
                 className="flex flex-wrap gap-4 pt-2"

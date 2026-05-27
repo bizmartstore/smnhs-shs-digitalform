@@ -32,10 +32,38 @@ export function RegistrationTicket({
         scale: 2,
         useCORS: true,
       });
+      const fileName = `SMNHS-Ticket-${control}.png`;
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      if (isMobile && "toBlob" in canvas) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+        if (!blob) throw new Error("Unable to generate ticket image.");
+        const file = new File([blob], fileName, { type: "image/png" });
+
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: "SMNHS Registration Ticket" });
+          toast.success("Ticket image ready to save/share.");
+          return;
+        }
+
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.download = fileName;
+        link.href = objectUrl;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+        toast.success("Ticket downloaded!");
+        return;
+      }
+
       const link = document.createElement("a");
-      link.download = `SMNHS-Ticket-${control}.png`;
+      link.download = fileName;
       link.href = canvas.toDataURL("image/png");
+      document.body.appendChild(link);
       link.click();
+      link.remove();
       toast.success("Ticket downloaded!");
     } catch (err: any) {
       toast.error("Failed to download. Try screenshot instead.");
