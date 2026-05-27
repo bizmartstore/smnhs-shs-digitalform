@@ -269,6 +269,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Control #</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>LRN</TableHead>
                   <TableHead>Prev. Section</TableHead>
@@ -281,6 +282,9 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
               <TableBody>
                 {filtered.map((e: any) => (
                   <TableRow key={e.id}>
+                    <TableCell className="font-mono text-xs font-semibold text-primary">
+                      {e.control_no ? `SMNHS-${String(e.control_no).padStart(5, "0")}` : "—"}
+                    </TableCell>
                     <TableCell className="font-medium">{e.last_name}, {e.first_name}</TableCell>
                     <TableCell className="font-mono text-xs">{e.lrn || "—"}</TableCell>
                     <TableCell>{e.previous_section}</TableCell>
@@ -293,7 +297,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
