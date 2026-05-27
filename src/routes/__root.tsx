@@ -71,7 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" },
       { title: "SMNHS · SHS Enrollment 2026" },
       { name: "description", content: "Santa Monica National High School — Senior High School online enrollment form for incoming Grade 12 students, Puerto Princesa City." },
       { property: "og:title", content: "SMNHS · SHS Enrollment 2026" },

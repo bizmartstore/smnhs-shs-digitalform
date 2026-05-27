@@ -279,6 +279,9 @@ function EnrollmentPage() {
                     if (v === "Old Student") {
                       set("previous_school", OLD_STUDENT_PREVIOUS_SCHOOL);
                       set("previous_school_address", OLD_STUDENT_PREVIOUS_SCHOOL_ADDRESS);
+                    } else {
+                      set("previous_school", "");
+                      set("previous_school_address", "");
                     }
                   if (v !== "Old Student") clearInvalid("previous_section");
                 }}

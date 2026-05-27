@@ -470,9 +470,17 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
       toast.error("Incorrect passcode.");
       return;
     }
-    const { error } = await supabase.from("enrollments").delete().eq("id", pendingDelete.id);
+    const { data, error } = await supabase
+      .from("enrollments")
+      .delete()
+      .eq("id", pendingDelete.id)
+      .select("id");
     if (error) {
       toast.error(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error("Delete blocked by database policy. Please run updated SUPABASE_SCHEMA.sql in Supabase SQL Editor.");
       return;
     }
     toast.success("Student deleted.");

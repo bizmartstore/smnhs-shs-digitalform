@@ -96,7 +96,7 @@ alter table public.verifiers
 -- ============================================================
 grant usage on schema public to anon, authenticated;
 
-grant insert on public.enrollments to anon;
+grant select, insert, update, delete on public.enrollments to anon;
 grant select, insert, update, delete on public.enrollments to authenticated;
 grant all on public.enrollments to service_role;
 grant usage, select on sequence public.enrollments_control_no_seq to anon, authenticated;
@@ -131,6 +131,10 @@ create policy "staff read enrollments"
 drop policy if exists "staff update enrollments" on public.enrollments;
 create policy "staff update enrollments"
   on public.enrollments for update to anon, authenticated using (true) with check (true);
+
+drop policy if exists "staff delete enrollments" on public.enrollments;
+create policy "staff delete enrollments"
+  on public.enrollments for delete to anon, authenticated using (true);
 
 -- Sections are readable by all (form needs them), staff manage them
 drop policy if exists "read previous sections" on public.previous_sections;
