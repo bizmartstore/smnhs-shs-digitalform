@@ -14,9 +14,10 @@ import { toast, Toaster } from "sonner";
 import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
 import { SignaturePadField, type SignaturePadHandle } from "@/components/SignaturePadField";
+import { RegistrationTicket } from "@/components/RegistrationTicket";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
-import { CheckCircle2, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
 
