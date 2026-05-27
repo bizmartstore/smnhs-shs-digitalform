@@ -9,7 +9,7 @@ export type SignaturePadHandle = {
   clear: () => void;
 };
 
-type Props = { label: string };
+type Props = { label: string; invalid?: boolean; onChangeStroke?: () => void };
 
 export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
   function SignaturePadField({ label }, ref) {
