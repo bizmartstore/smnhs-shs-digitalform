@@ -16,7 +16,7 @@ import { Footer } from "@/components/Footer";
 import { SignaturePadField, type SignaturePadHandle } from "@/components/SignaturePadField";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
 
