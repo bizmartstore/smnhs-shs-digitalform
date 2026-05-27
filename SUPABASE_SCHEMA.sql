@@ -82,8 +82,13 @@ create table if not exists public.grade12_sections (
 create table if not exists public.verifiers (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  password text,
   created_at timestamptz not null default now()
 );
+
+-- Ensure verifier password column exists on already-created databases
+alter table public.verifiers
+  add column if not exists password text;
 
 -- ============================================================
 -- Permissions (Supabase Data API)

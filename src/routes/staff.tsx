@@ -26,6 +26,7 @@ export const Route = createFileRoute("/staff")({ component: StaffPage });
 
 const AUTH_KEY = "smnhs_staff_auth";
 const ADMIN_ACTION_PASSCODE = "330506";
+const DB_VERIFIER_KEY = "smnhs_staff_db_verifier";
 
 function StaffPage() {
   const [authed, setAuthed] = useState(false);
@@ -98,6 +99,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [manageUnlocked, setManageUnlocked] = useState(false);
   const [manageGateOpen, setManageGateOpen] = useState(false);
   const [managePasscode, setManagePasscode] = useState("");
+  const [databaseUnlocked, setDatabaseUnlocked] = useState(false);
+  const [databaseGateOpen, setDatabaseGateOpen] = useState(false);
+  const [dbFullName, setDbFullName] = useState("");
+  const [dbPassword, setDbPassword] = useState("");
+  const [currentVerifier, setCurrentVerifier] = useState<{ id: string; name: string } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -116,8 +122,23 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    const raw = localStorage.getItem(DB_VERIFIER_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.id && parsed?.name) {
+        setCurrentVerifier({ id: parsed.id, name: parsed.name });
+        setDatabaseUnlocked(true);
+      }
+    } catch {}
+  }, []);
 
   function handleTabChange(next: string) {
+    if (next === "database" && !databaseUnlocked) {
+      setDatabaseGateOpen(true);
+      return;
+    }
     if (next === "manage" && !manageUnlocked) {
       setManageGateOpen(true);
       return;
@@ -134,6 +155,69 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     setActiveTab("manage");
     setManageGateOpen(false);
     setManagePasscode("");
+  }
+
+  async function unlockDatabase() {
+    const name = dbFullName.trim().toUpperCase();
+    const password = dbPassword.trim();
+    if (!name || !password) {
+      toast.error("Enter full name and password.");
+      return;
+    }
+
+    const { data: existing, error: existingErr } = await supabase
+      .from("verifiers")
+      .select("id, name")
+      .eq("name", name)
+      .eq("password", password)
+      .limit(1);
+
+    if (existingErr) {
+      toast.error(existingErr.message);
+      return;
+    }
+
+    let verifier = existing?.[0];
+    if (!verifier) {
+      const { data: sameName, error: sameNameErr } = await supabase
+        .from("verifiers")
+        .select("id")
+        .eq("name", name)
+        .limit(1);
+      if (sameNameErr) {
+        toast.error(sameNameErr.message);
+        return;
+      }
+      if (sameName && sameName.length > 0) {
+        toast.error("Name already exists with a different password.");
+        return;
+      }
+
+      const { data: created, error: createErr } = await supabase
+        .from("verifiers")
+        .insert({ name, password })
+        .select("id, name")
+        .limit(1);
+      if (createErr) {
+        toast.error(createErr.message);
+        return;
+      }
+      verifier = created?.[0];
+    }
+
+    if (!verifier) {
+      toast.error("Unable to open Database tab.");
+      return;
+    }
+
+    setCurrentVerifier(verifier);
+    setDatabaseUnlocked(true);
+    setActiveTab("database");
+    setDatabaseGateOpen(false);
+    localStorage.setItem(DB_VERIFIER_KEY, JSON.stringify(verifier));
+    setDbPassword("");
+    toast.success(`Database unlocked as ${verifier.name}.`);
+    refresh();
   }
 
   return (
@@ -160,7 +244,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             <SummaryTab enrollments={enrollments} loading={loading} />
           </TabsContent>
           <TabsContent value="database">
-            <DatabaseTab enrollments={enrollments} loading={loading} onRefresh={refresh} verifiers={verifiers} />
+            <DatabaseTab enrollments={enrollments} loading={loading} onRefresh={refresh} currentVerifier={currentVerifier} />
           </TabsContent>
           <TabsContent value="sectioning">
             <SectioningTab
@@ -191,6 +275,29 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 onChange={(e) => setManagePasscode(e.target.value)}
               />
               <Button className="w-full" onClick={unlockManage}>Unlock Manage</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={databaseGateOpen} onOpenChange={setDatabaseGateOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Database Access</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Input
+                placeholder="FULL NAME (ALL CAPS)"
+                value={dbFullName}
+                onChange={(e) => setDbFullName(e.target.value.toUpperCase())}
+              />
+              <Input
+                type="password"
+                placeholder="Password"
+                value={dbPassword}
+                onChange={(e) => setDbPassword(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                First time: this registers your verifier account. Next time on this device, Database opens directly.
+              </p>
+              <Button className="w-full" onClick={unlockDatabase}>Continue</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -302,12 +409,9 @@ function BreakdownCard({ title, data }: { title: string; data: Record<string, nu
 }
 
 /* -------- DATABASE -------- */
-function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
+function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) {
   const [q, setQ] = useState("");
   const [view, setView] = useState<any | null>(null);
-  const [verifyOpen, setVerifyOpen] = useState(false);
-  const [pendingVerify, setPendingVerify] = useState<any | null>(null);
-  const [selectedVerifierId, setSelectedVerifierId] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deletePasscode, setDeletePasscode] = useState("");
@@ -333,19 +437,21 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
     a.click();
   }
 
-  async function verifyStudent() {
-    if (!pendingVerify || !selectedVerifierId) return;
-    const verifier = verifiers.find((v: any) => v.id === selectedVerifierId);
-    if (!verifier) return;
+  async function verifyStudent(student: any) {
+    if (!student) return;
+    if (!currentVerifier) {
+      toast.error("No verifier account is active.");
+      return;
+    }
     const { error } = await supabase
       .from("enrollments")
       .update({
         is_verified: true,
-        verified_by_id: verifier.id,
-        verified_by_name: verifier.name,
+        verified_by_id: currentVerifier.id,
+        verified_by_name: currentVerifier.name,
         verified_at: new Date().toISOString(),
       })
-      .eq("id", pendingVerify.id);
+      .eq("id", student.id);
     if (error) {
       if (error.message.includes("is_verified") && error.message.includes("schema cache")) {
         toast.error("Database not updated yet. Run the updated SUPABASE_SCHEMA.sql in Supabase SQL Editor, then try again.");
@@ -355,9 +461,6 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
       return;
     }
     toast.success("Student verified.");
-    setVerifyOpen(false);
-    setPendingVerify(null);
-    setSelectedVerifierId("");
     onRefresh();
   }
 
@@ -429,9 +532,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
                         <Button
                           size="sm"
                           onClick={() => {
-                            if (!verifiers.length) return toast.error("Add at least one verifier in Manage tab first.");
-                            setPendingVerify(e);
-                            setVerifyOpen(true);
+                            verifyStudent(e);
                           }}
                         >
                           Verify
@@ -469,26 +570,6 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Enrollment Details</DialogTitle></DialogHeader>
           {view && <EnrollmentDetail data={view} />}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Verify Student</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {pendingVerify ? `Select verifier for ${pendingVerify.last_name}, ${pendingVerify.first_name}.` : "Select verifier."}
-            </p>
-            <Select value={selectedVerifierId} onValueChange={setSelectedVerifierId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select verifier" />
-              </SelectTrigger>
-              <SelectContent>
-                {verifiers.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={verifyStudent} disabled={!selectedVerifierId} className="w-full">Confirm Verify</Button>
-          </div>
         </DialogContent>
       </Dialog>
 
