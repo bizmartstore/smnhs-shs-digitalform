@@ -74,10 +74,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "SMNHS · SHS Enrollment 2026" },
       { name: "description", content: "Santa Monica National High School — Senior High School online enrollment form for incoming Grade 12 students, Puerto Princesa City." },
-      { property: "og:title", content: "SMNHS · SHS Enrollment" },
-      { property: "og:description", content: "Senior High School enrollment for SMNHS Puerto Princesa." },
+      { property: "og:title", content: "SMNHS · SHS Enrollment 2026" },
+      { property: "og:description", content: "Santa Monica National High School — Senior High School online enrollment form for incoming Grade 12 students, Puerto Princesa City." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "SMNHS · SHS Enrollment 2026" },
+      { name: "twitter:description", content: "Santa Monica National High School — Senior High School online enrollment form for incoming Grade 12 students, Puerto Princesa City." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fc4251e6-3631-4784-9956-147393159d95/id-preview-782e70a6--768ebd80-6809-4a62-bcd6-7c36d53c3d8d.lovable.app-1779858990272.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fc4251e6-3631-4784-9956-147393159d95/id-preview-782e70a6--768ebd80-6809-4a62-bcd6-7c36d53c3d8d.lovable.app-1779858990272.png" },
     ],
     links: [
       {
