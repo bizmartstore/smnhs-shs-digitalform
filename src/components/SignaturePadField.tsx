@@ -12,7 +12,7 @@ export type SignaturePadHandle = {
 type Props = { label: string; invalid?: boolean; onChangeStroke?: () => void };
 
 export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
-  function SignaturePadField({ label }, ref) {
+  function SignaturePadField({ label, invalid, onChangeStroke }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const padRef = useRef<SignaturePad | null>(null);
 
