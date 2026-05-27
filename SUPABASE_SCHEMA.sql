@@ -48,6 +48,12 @@ create table if not exists public.enrollments (
   learner_signature_data jsonb,
   guardian_signature_data jsonb,
 
+  -- Verification (set by admin in staff dashboard)
+  is_verified boolean default false,
+  verified_by_id uuid,
+  verified_by_name text,
+  verified_at timestamptz,
+
   -- Sectioning (filled by staff)
   assigned_section text
 );
@@ -60,6 +66,13 @@ create table if not exists public.previous_sections (
 
 -- 3) Grade 12 sections — created by staff for assignment
 create table if not exists public.grade12_sections (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  created_at timestamptz not null default now()
+);
+
+-- 4) Verifiers - maintained by admin in Manage tab
+create table if not exists public.verifiers (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
   created_at timestamptz not null default now()
@@ -82,12 +95,16 @@ grant all on public.previous_sections to authenticated, service_role;
 grant select, insert, delete on public.grade12_sections to anon;
 grant all on public.grade12_sections to authenticated, service_role;
 
+grant select, insert, delete on public.verifiers to anon;
+grant all on public.verifiers to authenticated, service_role;
+
 -- ============================================================
 -- Row Level Security
 -- ============================================================
 alter table public.enrollments enable row level security;
 alter table public.previous_sections enable row level security;
 alter table public.grade12_sections enable row level security;
+alter table public.verifiers enable row level security;
 
 -- Anyone can submit an enrollment (public form)
 drop policy if exists "anyone can insert enrollment" on public.enrollments;
@@ -117,3 +134,10 @@ create policy "read g12 sections"
 drop policy if exists "manage g12 sections" on public.grade12_sections;
 create policy "manage g12 sections"
   on public.grade12_sections for all to anon, authenticated using (true) with check (true);
+
+drop policy if exists "read verifiers" on public.verifiers;
+create policy "read verifiers"
+  on public.verifiers for select to anon, authenticated using (true);
+drop policy if exists "manage verifiers" on public.verifiers;
+create policy "manage verifiers"
+  on public.verifiers for all to anon, authenticated using (true) with check (true);

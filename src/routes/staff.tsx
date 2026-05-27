@@ -91,19 +91,22 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [sections, setSections] = useState<string[]>(DEFAULT_PREVIOUS_SECTIONS);
   const [g12Sections, setG12Sections] = useState<{ id: string; name: string }[]>([]);
+  const [verifiers, setVerifiers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
     setLoading(true);
-    const [{ data: enr }, { data: prev }, { data: g12 }] = await Promise.all([
+    const [{ data: enr }, { data: prev }, { data: g12 }, { data: vfr }] = await Promise.all([
       supabase.from("enrollments").select("*").order("created_at", { ascending: false }),
       supabase.from("previous_sections").select("name").order("name"),
       supabase.from("grade12_sections").select("id, name").order("name"),
+      supabase.from("verifiers").select("id, name").order("name"),
     ]);
     setEnrollments(enr ?? []);
     const extra = (prev ?? []).map((r: any) => r.name);
     setSections(Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra])));
     setG12Sections(g12 ?? []);
+    setVerifiers(vfr ?? []);
     setLoading(false);
   }
 
@@ -133,7 +136,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             <SummaryTab enrollments={enrollments} loading={loading} />
           </TabsContent>
           <TabsContent value="database">
-            <DatabaseTab enrollments={enrollments} loading={loading} onRefresh={refresh} />
+            <DatabaseTab enrollments={enrollments} loading={loading} onRefresh={refresh} verifiers={verifiers} />
           </TabsContent>
           <TabsContent value="sectioning">
             <SectioningTab
@@ -147,6 +150,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               sections={sections}
               defaults={DEFAULT_PREVIOUS_SECTIONS}
               g12Sections={g12Sections}
+              verifiers={verifiers}
               onRefresh={refresh}
             />
           </TabsContent>
@@ -226,9 +230,12 @@ function BreakdownCard({ title, data }: { title: string; data: Record<string, nu
 }
 
 /* -------- DATABASE -------- */
-function DatabaseTab({ enrollments, loading, onRefresh }: any) {
+function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
   const [q, setQ] = useState("");
   const [view, setView] = useState<any | null>(null);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [pendingVerify, setPendingVerify] = useState<any | null>(null);
+  const [selectedVerifierId, setSelectedVerifierId] = useState("");
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -249,6 +256,30 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
     a.href = URL.createObjectURL(blob);
     a.download = `enrollments_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
+  }
+
+  async function verifyStudent() {
+    if (!pendingVerify || !selectedVerifierId) return;
+    const verifier = verifiers.find((v: any) => v.id === selectedVerifierId);
+    if (!verifier) return;
+    const { error } = await supabase
+      .from("enrollments")
+      .update({
+        is_verified: true,
+        verified_by_id: verifier.id,
+        verified_by_name: verifier.name,
+        verified_at: new Date().toISOString(),
+      })
+      .eq("id", pendingVerify.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Student verified.");
+    setVerifyOpen(false);
+    setPendingVerify(null);
+    setSelectedVerifierId("");
+    onRefresh();
   }
 
   return (
@@ -275,6 +306,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
                   <TableHead>Prev. Section</TableHead>
                   <TableHead>Strand</TableHead>
                   <TableHead>Contact</TableHead>
+                  <TableHead>Verification</TableHead>
                   <TableHead>Assigned</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -290,6 +322,25 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
                     <TableCell>{e.previous_section}</TableCell>
                     <TableCell>{e.strand}</TableCell>
                     <TableCell>{e.contact_number}</TableCell>
+                    <TableCell>
+                      {e.is_verified ? (
+                        <div className="space-y-1">
+                          <Badge>Verified</Badge>
+                          <div className="text-[11px] text-muted-foreground">By: {e.verified_by_name || "—"}</div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (!verifiers.length) return toast.error("Add at least one verifier in Manage tab first.");
+                            setPendingVerify(e);
+                            setVerifyOpen(true);
+                          }}
+                        >
+                          Verify
+                        </Button>
+                      )}
+                    </TableCell>
                     <TableCell>{e.assigned_section ? <Badge>{e.assigned_section}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       <Button size="sm" variant="ghost" onClick={() => setView(e)}><Eye className="h-4 w-4" /></Button>
@@ -297,7 +348,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -309,6 +360,26 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Enrollment Details</DialogTitle></DialogHeader>
           {view && <EnrollmentDetail data={view} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Verify Student</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {pendingVerify ? `Select verifier for ${pendingVerify.last_name}, ${pendingVerify.first_name}.` : "Select verifier."}
+            </p>
+            <Select value={selectedVerifierId} onValueChange={setSelectedVerifierId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select verifier" />
+              </SelectTrigger>
+              <SelectContent>
+                {verifiers.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button onClick={verifyStudent} disabled={!selectedVerifierId} className="w-full">Confirm Verify</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </Card>
@@ -355,12 +426,13 @@ function SigPreview({ title, data }: { title: string; data: any }) {
 /* -------- SECTIONING -------- */
 function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
   const [filter, setFilter] = useState<string>("ALL");
+  const verified = enrollments.filter((e: any) => !!e.is_verified);
 
-  const filtered = enrollments.filter((e: any) =>
+  const filtered = verified.filter((e: any) =>
     filter === "ALL" ? true : (e.previous_section ?? "") === filter,
   );
 
-  const prevOptions = Array.from(new Set(enrollments.map((e: any) => e.previous_section).filter(Boolean))) as string[];
+  const prevOptions = Array.from(new Set(verified.map((e: any) => e.previous_section).filter(Boolean))) as string[];
 
   async function assign(id: string, section: string | null) {
     const { error } = await supabase.from("enrollments").update({ assigned_section: section }).eq("id", id);
@@ -380,7 +452,7 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
       <CardHeader>
         <CardTitle className="text-base">Grade 12 Sectioning</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Assign Grade 12 sections to students based on their previous Grade 11 section.
+          Only verified students appear here. Assign Grade 12 sections based on their previous Grade 11 section.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -456,9 +528,10 @@ function BulkAssignButton({ g12Sections, onAssign }: any) {
 }
 
 /* -------- MANAGE -------- */
-function ManageTab({ sections, defaults, g12Sections, onRefresh }: any) {
+function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: any) {
   const [newPrev, setNewPrev] = useState("");
   const [newG12, setNewG12] = useState("");
+  const [newVerifier, setNewVerifier] = useState("");
 
   async function addPrev() {
     const name = newPrev.trim().toUpperCase();
@@ -480,11 +553,21 @@ function ManageTab({ sections, defaults, g12Sections, onRefresh }: any) {
     const { error } = await supabase.from("grade12_sections").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Removed."); onRefresh(); }
   }
+  async function addVerifier() {
+    const name = newVerifier.trim();
+    if (!name) return;
+    const { error } = await supabase.from("verifiers").insert({ name });
+    if (error) toast.error(error.message); else { toast.success("Verifier added."); setNewVerifier(""); onRefresh(); }
+  }
+  async function delVerifier(id: string) {
+    const { error } = await supabase.from("verifiers").delete().eq("id", id);
+    if (error) toast.error(error.message); else { toast.success("Verifier removed."); onRefresh(); }
+  }
 
   const customPrev = sections.filter((s: string) => !defaults.includes(s));
 
   return (
-    <div className="grid md:grid-cols-2 gap-4">
+    <div className="grid md:grid-cols-3 gap-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Grade 11 Previous Sections</CardTitle>
@@ -532,6 +615,28 @@ function ManageTab({ sections, defaults, g12Sections, onRefresh }: any) {
               <div key={s.id} className="flex items-center justify-between border rounded px-2 py-1.5">
                 <span className="text-sm">{s.name}</span>
                 <Button size="sm" variant="ghost" onClick={() => delG12(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Verifiers</CardTitle>
+          <p className="text-xs text-muted-foreground">Admins select these names when verifying students in Database.</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input value={newVerifier} onChange={(e) => setNewVerifier(e.target.value)} placeholder="e.g. Ms. Dela Cruz" />
+            <Button onClick={addVerifier}><Plus className="h-4 w-4" /></Button>
+          </div>
+          <div className="space-y-1">
+            {verifiers.length === 0 && <p className="text-xs text-muted-foreground">No verifiers yet.</p>}
+            {verifiers.map((v: any) => (
+              <div key={v.id} className="flex items-center justify-between border rounded px-2 py-1.5">
+                <span className="text-sm">{v.name}</span>
+                <Button size="sm" variant="ghost" onClick={() => delVerifier(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div>
             ))}
           </div>
