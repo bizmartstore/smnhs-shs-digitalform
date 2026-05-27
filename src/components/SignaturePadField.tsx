@@ -9,10 +9,10 @@ export type SignaturePadHandle = {
   clear: () => void;
 };
 
-type Props = { label: string };
+type Props = { label: string; invalid?: boolean; onChangeStroke?: () => void };
 
 export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
-  function SignaturePadField({ label }, ref) {
+  function SignaturePadField({ label, invalid, onChangeStroke }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const padRef = useRef<SignaturePad | null>(null);
 
@@ -38,13 +38,16 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
         maxWidth: 2.2,
         throttle: 8,
       });
+      if (onChangeStroke) {
+        padRef.current.addEventListener("endStroke", onChangeStroke);
+      }
       resize();
       window.addEventListener("resize", resize);
       return () => {
         window.removeEventListener("resize", resize);
         padRef.current?.off();
       };
-    }, []);
+    }, [onChangeStroke]);
 
     useImperativeHandle(ref, () => ({
       isEmpty: () => padRef.current?.isEmpty() ?? true,
@@ -56,7 +59,7 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
     return (
       <div className="space-y-2">
         <div className="text-sm font-medium">{label}</div>
-        <div className="relative rounded-md border bg-white overflow-hidden">
+        <div className={`relative rounded-md border-2 bg-white overflow-hidden transition-colors ${invalid ? "border-destructive ring-2 ring-destructive/30" : "border-input"}`}>
           <canvas
             ref={canvasRef}
             className="block w-full h-40 touch-none"

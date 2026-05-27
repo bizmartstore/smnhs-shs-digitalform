@@ -72,15 +72,30 @@
   /* Force UPPERCASE input for text fields with .uppercase-input */
   .uppercase-input { text-transform: uppercase; }
   .uppercase-input::placeholder { text-transform: none; }
+
+  /* Field invalid state - applied on failed submit, cleared on edit */
+  .field-invalid,
+  .field-invalid:focus-visible {
+    border-color: var(--destructive) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 25%, transparent) !important;
+    background-color: color-mix(in oklab, var(--destructive) 6%, var(--background)) !important;
+  }
 }
 
 /* Aggressively hide Lovable badge globally */
 #lovable-badge,
 #lovable-badge-large,
 [id^="lovable-badge"],
+[id*="lovable-badge"],
 [class*="lovable-badge"],
-a[href*="lovable.dev"][target="_blank"],
-iframe[src*="lovable.dev/badge"] {
+[class*="LovableBadge"],
+a[href*="lovable.dev"],
+a[href*="gpteng.co"],
+iframe[src*="lovable.dev"],
+iframe[src*="gpteng.co"],
+script[src*="gpteng.co"] ~ div,
+div[data-lovable-badge],
+#__lovable_badge__ {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -88,5 +103,6 @@ iframe[src*="lovable.dev/badge"] {
   width: 0 !important;
   height: 0 !important;
   position: absolute !important;
-  left: -9999px !important;
+  left: -99999px !important;
+  top: -99999px !important;
 }
