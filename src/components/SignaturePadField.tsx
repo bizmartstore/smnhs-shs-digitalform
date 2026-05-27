@@ -38,13 +38,16 @@ export const SignaturePadField = forwardRef<SignaturePadHandle, Props>(
         maxWidth: 2.2,
         throttle: 8,
       });
+      if (onChangeStroke) {
+        padRef.current.addEventListener("endStroke", onChangeStroke);
+      }
       resize();
       window.addEventListener("resize", resize);
       return () => {
         window.removeEventListener("resize", resize);
         padRef.current?.off();
       };
-    }, []);
+    }, [onChangeStroke]);
 
     useImperativeHandle(ref, () => ({
       isEmpty: () => padRef.current?.isEmpty() ?? true,
