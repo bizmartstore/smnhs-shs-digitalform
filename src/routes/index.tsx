@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,11 +60,11 @@ function EnrollmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [sections, setSections] = useState<string[]>(DEFAULT_PREVIOUS_SECTIONS);
+  const [invalid, setInvalid] = useState<Set<string>>(new Set());
   const learnerSig = useRef<SignaturePadHandle>(null);
   const guardianSig = useRef<SignaturePadHandle>(null);
 
   useEffect(() => {
-    // Load sections list (custom + defaults)
     (async () => {
       try {
         const { data } = await supabase
@@ -72,27 +72,44 @@ function EnrollmentPage() {
           .select("name")
           .order("name");
         const extra = (data ?? []).map((r: any) => r.name as string);
-        const merged = Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra]));
-        setSections(merged);
+        setSections(Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra])));
       } catch { /* ignore - use defaults */ }
     })();
   }, []);
 
-  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const clearInvalid = (...keys: string[]) => {
+    setInvalid((prev) => {
+      if (!keys.some((k) => prev.has(k))) return prev;
+      const next = new Set(prev);
+      keys.forEach((k) => next.delete(k));
+      return next;
+    });
+  };
+
+  const set = (k: string, v: any) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (v !== "" && v !== false && v != null) clearInvalid(k);
+  };
 
   const handleText = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const v = UPPER_FIELDS.has(k) ? e.target.value.toUpperCase() : e.target.value;
     set(k, v);
   };
 
+  const cls = (k: string, base = "") =>
+    `${base} ${invalid.has(k) ? "field-invalid" : ""}`.trim();
+
   const strandOptions = useMemo(() => {
     if (form.track === "Academic Track") return ["ABM", "HUMSS", "STEM"];
     return ["AFA", "IA", "ICT", "HE"];
   }, [form.track]);
 
+  const isOldStudent = form.student_type === "Old Student";
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    // Required validations
+
+    const bad = new Set<string>();
     const required: [string, string][] = [
       ["last_name", "Last Name"], ["first_name", "First Name"],
       ["age", "Age"], ["nationality", "Nationality"],
@@ -106,7 +123,6 @@ function EnrollmentPage() {
       ["guardian_name", "Guardian's Name"], ["guardian_relationship", "Guardian Relationship"],
       ["guardian_contact", "Guardian Contact"],
       ["previous_school", "Previous School"], ["previous_school_address", "Previous School Address"],
-      ["previous_section", "Previous Section"],
       ["height_m", "Height"], ["weight_kg", "Weight"], ["blood_type", "Blood Type"],
       ["medical_conditions", "Medical Conditions"],
       ["emergency_contact_person", "Emergency Contact Person"],
@@ -114,24 +130,42 @@ function EnrollmentPage() {
       ["learner_name", "Learner Name"],
       ["guardian_signatory_name", "Parent/Guardian Name"],
     ];
-    for (const [k, label] of required) {
-      if (!String(form[k] ?? "").trim()) {
-        toast.error(`${label} is required (type N/A if not applicable).`);
-        return;
-      }
+    if (isOldStudent) required.push(["previous_section", "Previous Section"]);
+
+    for (const [k] of required) {
+      if (!String(form[k] ?? "").trim()) bad.add(k);
     }
-    if (!form.sex) return toast.error("Please select Sex.");
-    if (!form.certified) return toast.error("Please confirm the certification checkbox.");
-    if (learnerSig.current?.isEmpty()) return toast.error("Learner signature is required.");
-    if (guardianSig.current?.isEmpty()) return toast.error("Parent/Guardian signature is required.");
+    if (!form.sex) bad.add("sex");
+    if (form.status === "Irregular" && !String(form.irregular_reason).trim()) bad.add("irregular_reason");
+
+    // Documents: at least one checkbox required
+    const anyDoc = form.doc_sf9 || form.doc_psa || form.doc_other || form.doc_cor || form.doc_a5;
+    if (!anyDoc) bad.add("documents");
+    if (form.doc_other && !String(form.other_documents).trim()) bad.add("other_documents");
+
+    if (!form.certified) bad.add("certified");
+    if (learnerSig.current?.isEmpty()) bad.add("learner_signature");
+    if (guardianSig.current?.isEmpty()) bad.add("guardian_signature");
+
+    if (bad.size > 0) {
+      setInvalid(bad);
+      toast.error(`Please complete ${bad.size} required field${bad.size > 1 ? "s" : ""} (highlighted in red).`);
+      // scroll to first invalid
+      setTimeout(() => {
+        const el = document.querySelector(".field-invalid");
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const payload = {
+      const payload: any = {
         ...form,
         age: form.age ? Number(form.age) : null,
         height_m: form.height_m ? Number(form.height_m) : null,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+        previous_section: isOldStudent ? form.previous_section : null,
         learner_signature_data: learnerSig.current?.toData() ?? [],
         guardian_signature_data: guardianSig.current?.toData() ?? [],
         certified_at: new Date().toISOString(),
@@ -160,14 +194,12 @@ function EnrollmentPage() {
         <main className="flex-1 mx-auto max-w-2xl w-full px-4 py-16 text-center">
           <CheckCircle2 className="mx-auto h-16 w-16 text-green-600" />
           <h2 className="mt-4 text-2xl font-bold">Enrollment Submitted!</h2>
-          <p className="mt-2 text-muted-foreground">
-            Your reference / control number:
-          </p>
+          <p className="mt-2 text-muted-foreground">Your reference / control number:</p>
           <p className="mt-1 text-xl font-mono font-bold text-primary">{done}</p>
           <p className="mt-4 text-sm text-muted-foreground">
             Please screenshot this page. Visit the Registrar's Office for verification.
           </p>
-          <Button className="mt-6" onClick={() => { setForm(INITIAL); setDone(null); }}>
+          <Button className="mt-6" onClick={() => { setForm(INITIAL); setDone(null); setInvalid(new Set()); }}>
             Submit Another Enrollment
           </Button>
         </main>
@@ -176,34 +208,36 @@ function EnrollmentPage() {
     );
   }
 
+  const docInvalid = invalid.has("documents");
+
   return (
     <div className="min-h-screen flex flex-col">
       <Toaster richColors position="top-center" />
       <SchoolHeader subtitle="Incoming Grade 12 · SHS Enrollment Form" />
       <main className="flex-1 mx-auto max-w-5xl w-full px-3 sm:px-4 py-6">
-        <form onSubmit={submit} className="space-y-6">
+        <form onSubmit={submit} noValidate className="space-y-6">
 
           <Section title="I. Learner Information">
             <Grid>
-              <Field label="Last Name *"><Input className="uppercase-input" value={form.last_name} onChange={handleText("last_name")} required /></Field>
-              <Field label="First Name *"><Input className="uppercase-input" value={form.first_name} onChange={handleText("first_name")} required /></Field>
+              <Field label="Last Name *"><Input className={cls("last_name", "uppercase-input")} value={form.last_name} onChange={handleText("last_name")} /></Field>
+              <Field label="First Name *"><Input className={cls("first_name", "uppercase-input")} value={form.first_name} onChange={handleText("first_name")} /></Field>
               <Field label="Middle Name"><Input className="uppercase-input" value={form.middle_name} onChange={handleText("middle_name")} /></Field>
               <Field label="Extension (Jr., III)"><Input className="uppercase-input" value={form.extension_name} onChange={handleText("extension_name")} /></Field>
               <Field label="LRN (12 digits)"><Input inputMode="numeric" maxLength={12} value={form.lrn} onChange={(e) => set("lrn", e.target.value.replace(/\D/g, "").slice(0, 12))} /></Field>
               <Field label="Sex *">
-                <RadioGroup value={form.sex} onValueChange={(v) => set("sex", v)} className="flex gap-4 pt-2">
+                <RadioGroup value={form.sex} onValueChange={(v) => set("sex", v)} className={`flex gap-4 pt-2 rounded-md px-2 ${invalid.has("sex") ? "field-invalid" : ""}`}>
                   <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="Male" /> Male</label>
                   <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="Female" /> Female</label>
                 </RadioGroup>
               </Field>
-              <Field label="Age *"><Input type="number" min={1} max={99} value={form.age} onChange={(e) => set("age", e.target.value)} required /></Field>
-              <Field label="Nationality *"><Input className="uppercase-input" value={form.nationality} onChange={handleText("nationality")} required /></Field>
+              <Field label="Age *"><Input className={cls("age")} type="number" min={1} max={99} value={form.age} onChange={(e) => set("age", e.target.value)} /></Field>
+              <Field label="Nationality *"><Input className={cls("nationality", "uppercase-input")} value={form.nationality} onChange={handleText("nationality")} /></Field>
               <Field label="Mother Tongue"><Input className="uppercase-input" value={form.mother_tongue} onChange={handleText("mother_tongue")} /></Field>
-              <Field label="Date of Birth *"><Input type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} required /></Field>
-              <Field label="Place of Birth *"><Input className="uppercase-input" value={form.place_of_birth} onChange={handleText("place_of_birth")} required /></Field>
-              <Field label="Religion *"><Input className="uppercase-input" value={form.religion} onChange={handleText("religion")} required /></Field>
+              <Field label="Date of Birth *"><Input className={cls("date_of_birth")} type="date" value={form.date_of_birth} onChange={(e) => set("date_of_birth", e.target.value)} /></Field>
+              <Field label="Place of Birth *"><Input className={cls("place_of_birth", "uppercase-input")} value={form.place_of_birth} onChange={handleText("place_of_birth")} /></Field>
+              <Field label="Religion *"><Input className={cls("religion", "uppercase-input")} value={form.religion} onChange={handleText("religion")} /></Field>
               <Field label="Ethnicity"><Input className="uppercase-input" value={form.ethnicity} onChange={handleText("ethnicity")} /></Field>
-              <Field label="Contact Number *"><Input inputMode="tel" value={form.contact_number} onChange={(e) => set("contact_number", e.target.value)} required /></Field>
+              <Field label="Contact Number *"><Input className={cls("contact_number")} inputMode="tel" value={form.contact_number} onChange={(e) => set("contact_number", e.target.value)} /></Field>
               <Field label="4Ps Beneficiary">
                 <Select value={form.fourps} onValueChange={(v) => set("fourps", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -213,43 +247,52 @@ function EnrollmentPage() {
               <Field label="Facebook Account Name"><Input className="uppercase-input" value={form.facebook_name} onChange={handleText("facebook_name")} /></Field>
             </Grid>
             <Field label="Complete Home Address *" full>
-              <Textarea className="uppercase-input" rows={2} value={form.home_address} onChange={handleText("home_address")} required />
+              <Textarea className={cls("home_address", "uppercase-input")} rows={2} value={form.home_address} onChange={handleText("home_address")} />
             </Field>
           </Section>
 
           <Section title="II. Parent / Guardian Information" hint="Type N/A if not applicable.">
             <Grid>
-              <Field label="Father's Name *"><Input className="uppercase-input" value={form.father_name} onChange={handleText("father_name")} required /></Field>
-              <Field label="Father's Occupation *"><Input className="uppercase-input" value={form.father_occupation} onChange={handleText("father_occupation")} required /></Field>
-              <Field label="Father's Contact Number *"><Input value={form.father_contact} onChange={(e) => set("father_contact", e.target.value)} required /></Field>
-              <Field label="Mother's Name *"><Input className="uppercase-input" value={form.mother_name} onChange={handleText("mother_name")} required /></Field>
-              <Field label="Mother's Occupation *"><Input className="uppercase-input" value={form.mother_occupation} onChange={handleText("mother_occupation")} required /></Field>
-              <Field label="Mother's Contact Number *"><Input value={form.mother_contact} onChange={(e) => set("mother_contact", e.target.value)} required /></Field>
-              <Field label="Guardian's Name *"><Input className="uppercase-input" value={form.guardian_name} onChange={handleText("guardian_name")} required /></Field>
-              <Field label="Relationship to Learner *"><Input className="uppercase-input" value={form.guardian_relationship} onChange={handleText("guardian_relationship")} required /></Field>
-              <Field label="Guardian's Contact Number *"><Input value={form.guardian_contact} onChange={(e) => set("guardian_contact", e.target.value)} required /></Field>
+              <Field label="Father's Name *"><Input className={cls("father_name", "uppercase-input")} value={form.father_name} onChange={handleText("father_name")} /></Field>
+              <Field label="Father's Occupation *"><Input className={cls("father_occupation", "uppercase-input")} value={form.father_occupation} onChange={handleText("father_occupation")} /></Field>
+              <Field label="Father's Contact Number *"><Input className={cls("father_contact")} value={form.father_contact} onChange={(e) => set("father_contact", e.target.value)} /></Field>
+              <Field label="Mother's Name *"><Input className={cls("mother_name", "uppercase-input")} value={form.mother_name} onChange={handleText("mother_name")} /></Field>
+              <Field label="Mother's Occupation *"><Input className={cls("mother_occupation", "uppercase-input")} value={form.mother_occupation} onChange={handleText("mother_occupation")} /></Field>
+              <Field label="Mother's Contact Number *"><Input className={cls("mother_contact")} value={form.mother_contact} onChange={(e) => set("mother_contact", e.target.value)} /></Field>
+              <Field label="Guardian's Name *"><Input className={cls("guardian_name", "uppercase-input")} value={form.guardian_name} onChange={handleText("guardian_name")} /></Field>
+              <Field label="Relationship to Learner *"><Input className={cls("guardian_relationship", "uppercase-input")} value={form.guardian_relationship} onChange={handleText("guardian_relationship")} /></Field>
+              <Field label="Guardian's Contact Number *"><Input className={cls("guardian_contact")} value={form.guardian_contact} onChange={(e) => set("guardian_contact", e.target.value)} /></Field>
             </Grid>
           </Section>
 
           <Section title="III. Academic Information">
             <Field label="Student Type">
-              <RadioGroup value={form.student_type} onValueChange={(v) => set("student_type", v)} className="flex flex-wrap gap-4 pt-2">
+              <RadioGroup
+                value={form.student_type}
+                onValueChange={(v) => {
+                  set("student_type", v);
+                  if (v !== "Old Student") clearInvalid("previous_section");
+                }}
+                className="flex flex-wrap gap-4 pt-2"
+              >
                 {["Old Student", "Transferred In", "Balik Aral"].map((o) => (
                   <label key={o} className="flex items-center gap-2 text-sm"><RadioGroupItem value={o} /> {o}</label>
                 ))}
               </RadioGroup>
             </Field>
             <Grid>
-              <Field label="Name of Previous School *"><Input className="uppercase-input" value={form.previous_school} onChange={handleText("previous_school")} required /></Field>
-              <Field label="Address *"><Input className="uppercase-input" value={form.previous_school_address} onChange={handleText("previous_school_address")} required /></Field>
-              <Field label="Previous Section (Grade 11) *">
-                <Select value={form.previous_section} onValueChange={(v) => set("previous_section", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select previous section" /></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {sections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </Field>
+              <Field label="Name of Previous School *"><Input className={cls("previous_school", "uppercase-input")} value={form.previous_school} onChange={handleText("previous_school")} /></Field>
+              <Field label="Address *"><Input className={cls("previous_school_address", "uppercase-input")} value={form.previous_school_address} onChange={handleText("previous_school_address")} /></Field>
+              {isOldStudent && (
+                <Field label="Previous Section (Grade 11) *">
+                  <Select value={form.previous_section} onValueChange={(v) => set("previous_section", v)}>
+                    <SelectTrigger className={cls("previous_section")}><SelectValue placeholder="Select previous section" /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {sections.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
               <Field label="Status">
                 <RadioGroup value={form.status} onValueChange={(v) => set("status", v)} className="flex gap-4 pt-2">
                   <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="Regular" /> Regular</label>
@@ -257,7 +300,7 @@ function EnrollmentPage() {
                 </RadioGroup>
               </Field>
               {form.status === "Irregular" && (
-                <Field label="Reason"><Input className="uppercase-input" value={form.irregular_reason} onChange={handleText("irregular_reason")} /></Field>
+                <Field label="Reason *"><Input className={cls("irregular_reason", "uppercase-input")} value={form.irregular_reason} onChange={handleText("irregular_reason")} /></Field>
               )}
               <Field label="Preferred Program">
                 <Select value={form.preferred_program} onValueChange={(v) => set("preferred_program", v)}>
@@ -269,7 +312,7 @@ function EnrollmentPage() {
                 </Select>
               </Field>
               <Field label="Preferred Track">
-                <Select value={form.track} onValueChange={(v) => set("track", v)}>
+                <Select value={form.track} onValueChange={(v) => { set("track", v); set("strand", v === "Academic Track" ? "STEM" : "AFA"); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Academic Track">Academic Track</SelectItem>
@@ -288,30 +331,30 @@ function EnrollmentPage() {
             </Grid>
           </Section>
 
-          <Section title="IV. Health Information" hint="Type N/A if not applicable.">
+          <Section title="IV. Health Information">
             <Grid>
-              <Field label="Height (m) *"><Input type="number" step="0.01" value={form.height_m} onChange={(e) => set("height_m", e.target.value)} required /></Field>
-              <Field label="Weight (kg) *"><Input type="number" step="0.1" value={form.weight_kg} onChange={(e) => set("weight_kg", e.target.value)} required /></Field>
-              <Field label="Blood Type *"><Input className="uppercase-input" value={form.blood_type} onChange={handleText("blood_type")} required /></Field>
-              <Field label="Emergency Contact Person *"><Input className="uppercase-input" value={form.emergency_contact_person} onChange={handleText("emergency_contact_person")} required /></Field>
-              <Field label="Emergency Contact Number *"><Input value={form.emergency_contact_number} onChange={(e) => set("emergency_contact_number", e.target.value)} required /></Field>
+              <Field label="Height (m) *"><Input className={cls("height_m")} type="number" step="0.01" value={form.height_m} onChange={(e) => set("height_m", e.target.value)} /></Field>
+              <Field label="Weight (kg) *"><Input className={cls("weight_kg")} type="number" step="0.1" value={form.weight_kg} onChange={(e) => set("weight_kg", e.target.value)} /></Field>
+              <Field label="Blood Type *"><Input className={cls("blood_type", "uppercase-input")} value={form.blood_type} onChange={handleText("blood_type")} /></Field>
+              <Field label="Emergency Contact Person *"><Input className={cls("emergency_contact_person", "uppercase-input")} value={form.emergency_contact_person} onChange={handleText("emergency_contact_person")} /></Field>
+              <Field label="Emergency Contact Number *"><Input className={cls("emergency_contact_number")} value={form.emergency_contact_number} onChange={(e) => set("emergency_contact_number", e.target.value)} /></Field>
             </Grid>
-            <Field label="Medical Conditions / Allergies *" full>
-              <Textarea className="uppercase-input" rows={2} value={form.medical_conditions} onChange={handleText("medical_conditions")} required />
+            <Field label="Medical Conditions / Allergies *" hint="Type N/A if not applicable." full>
+              <Textarea className={cls("medical_conditions", "uppercase-input")} rows={2} value={form.medical_conditions} onChange={handleText("medical_conditions")} />
             </Field>
           </Section>
 
-          <Section title="V. Required Documents Submitted">
-            <div className="grid sm:grid-cols-2 gap-3">
-              <CheckRow checked={form.doc_sf9} onChange={(v) => set("doc_sf9", v)} label="SF9 / Report Card (Original)" />
-              <CheckRow checked={form.doc_psa} onChange={(v) => set("doc_psa", v)} label="PSA Birth Certificate (Photocopy)" />
-              <CheckRow checked={form.doc_other} onChange={(v) => set("doc_other", v)} label="Other Documents" />
-              <CheckRow checked={form.doc_cor} onChange={(v) => set("doc_cor", v)} label="Certificate of Rating (ALS/PEPT)" />
-              <CheckRow checked={form.doc_a5} onChange={(v) => set("doc_a5", v)} label="A5 / Learner's Permanent Record (ALS/PEPT)" />
+          <Section title="V. Required Documents Submitted" hint="Please check at least one document.">
+            <div className={`grid sm:grid-cols-2 gap-3 rounded-md p-2 ${docInvalid ? "field-invalid" : ""}`}>
+              <CheckRow checked={form.doc_sf9} onChange={(v) => { set("doc_sf9", v); if (v) clearInvalid("documents"); }} label="SF9 / Report Card (Original)" />
+              <CheckRow checked={form.doc_psa} onChange={(v) => { set("doc_psa", v); if (v) clearInvalid("documents"); }} label="PSA Birth Certificate (Photocopy)" />
+              <CheckRow checked={form.doc_other} onChange={(v) => { set("doc_other", v); if (v) clearInvalid("documents"); }} label="Other Documents" />
+              <CheckRow checked={form.doc_cor} onChange={(v) => { set("doc_cor", v); if (v) clearInvalid("documents"); }} label="Certificate of Rating (ALS/PEPT)" />
+              <CheckRow checked={form.doc_a5} onChange={(v) => { set("doc_a5", v); if (v) clearInvalid("documents"); }} label="A5 / Learner's Permanent Record (ALS/PEPT)" />
             </div>
             {form.doc_other && (
-              <Field label="Specify Other Documents" full>
-                <Input className="uppercase-input" value={form.other_documents} onChange={handleText("other_documents")} />
+              <Field label="Specify Other Documents *" full>
+                <Input className={cls("other_documents", "uppercase-input")} value={form.other_documents} onChange={handleText("other_documents")} />
               </Field>
             )}
           </Section>
@@ -324,7 +367,7 @@ function EnrollmentPage() {
               orientation. I also acknowledge that failure to comply with these policies may subject me
               to appropriate disciplinary actions in accordance with school guidelines.
             </p>
-            <label className="flex items-start gap-3 rounded-md border bg-accent/30 p-3">
+            <label className={`flex items-start gap-3 rounded-md border bg-accent/30 p-3 cursor-pointer ${invalid.has("certified") ? "field-invalid" : ""}`}>
               <Checkbox checked={form.certified} onCheckedChange={(v) => set("certified", !!v)} className="mt-0.5" />
               <span className="text-sm font-medium">
                 I confirm that this serves as my electronic signature.
@@ -334,15 +377,25 @@ function EnrollmentPage() {
             <div className="grid md:grid-cols-2 gap-4 pt-2">
               <div className="space-y-2">
                 <Field label="Name of Learner *">
-                  <Input className="uppercase-input" value={form.learner_name} onChange={handleText("learner_name")} required />
+                  <Input className={cls("learner_name", "uppercase-input")} value={form.learner_name} onChange={handleText("learner_name")} />
                 </Field>
-                <SignaturePadField ref={learnerSig} label="Signature of Learner *" />
+                <SignaturePadField
+                  ref={learnerSig}
+                  label="Signature of Learner *"
+                  invalid={invalid.has("learner_signature")}
+                  onChangeStroke={() => clearInvalid("learner_signature")}
+                />
               </div>
               <div className="space-y-2">
                 <Field label="Name of Parent / Guardian *">
-                  <Input className="uppercase-input" value={form.guardian_signatory_name} onChange={handleText("guardian_signatory_name")} required />
+                  <Input className={cls("guardian_signatory_name", "uppercase-input")} value={form.guardian_signatory_name} onChange={handleText("guardian_signatory_name")} />
                 </Field>
-                <SignaturePadField ref={guardianSig} label="Signature of Parent / Guardian *" />
+                <SignaturePadField
+                  ref={guardianSig}
+                  label="Signature of Parent / Guardian *"
+                  invalid={invalid.has("guardian_signature")}
+                  onChangeStroke={() => clearInvalid("guardian_signature")}
+                />
               </div>
             </div>
           </Section>
@@ -356,10 +409,6 @@ function EnrollmentPage() {
               {submitting ? "Submitting..." : "Submit Enrollment"}
             </Button>
           </div>
-
-          <p className="text-center text-xs text-muted-foreground">
-            <Link to="/staff" className="hover:underline">Staff Portal</Link>
-          </p>
         </form>
       </main>
       <Footer />
@@ -383,11 +432,12 @@ function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{children}</div>;
 }
 
-function Field({ label, children, full }: { label: string; children: React.ReactNode; full?: boolean }) {
+function Field({ label, children, full, hint }: { label: string; children: React.ReactNode; full?: boolean; hint?: string }) {
   return (
     <div className={`space-y-1.5 ${full ? "sm:col-span-2 lg:col-span-3" : ""}`}>
       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</Label>
       {children}
+      {hint && <p className="text-[11px] text-muted-foreground italic">{hint}</p>}
     </div>
   );
 }
