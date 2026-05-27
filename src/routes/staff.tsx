@@ -234,7 +234,7 @@ function DatabaseTab({ enrollments, loading, onRefresh }: any) {
     const s = q.trim().toLowerCase();
     if (!s) return enrollments;
     return enrollments.filter((e: any) =>
-      [e.last_name, e.first_name, e.lrn, e.previous_section, e.strand]
+      [e.last_name, e.first_name, e.lrn, e.previous_section, e.strand, e.control_no, `smnhs-${String(e.control_no ?? "").padStart(5, "0")}`]
         .some((v) => String(v ?? "").toLowerCase().includes(s)),
     );
   }, [enrollments, q]);
