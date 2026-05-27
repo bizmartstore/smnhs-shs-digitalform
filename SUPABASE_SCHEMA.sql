@@ -58,6 +58,13 @@ create table if not exists public.enrollments (
   assigned_section text
 );
 
+-- Ensure new verification columns exist on already-created databases
+alter table public.enrollments
+  add column if not exists is_verified boolean default false,
+  add column if not exists verified_by_id uuid,
+  add column if not exists verified_by_name text,
+  add column if not exists verified_at timestamptz;
+
 -- 2) Previous (Grade 11) sections — staff can extend the dropdown
 create table if not exists public.previous_sections (
   name text primary key,

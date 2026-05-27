@@ -25,6 +25,7 @@ import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download }
 export const Route = createFileRoute("/staff")({ component: StaffPage });
 
 const AUTH_KEY = "smnhs_staff_auth";
+const ADMIN_ACTION_PASSCODE = "330506";
 
 function StaffPage() {
   const [authed, setAuthed] = useState(false);
@@ -93,6 +94,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [g12Sections, setG12Sections] = useState<{ id: string; name: string }[]>([]);
   const [verifiers, setVerifiers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("summary");
+  const [manageUnlocked, setManageUnlocked] = useState(false);
+  const [manageGateOpen, setManageGateOpen] = useState(false);
+  const [managePasscode, setManagePasscode] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -112,6 +117,25 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { refresh(); }, []);
 
+  function handleTabChange(next: string) {
+    if (next === "manage" && !manageUnlocked) {
+      setManageGateOpen(true);
+      return;
+    }
+    setActiveTab(next);
+  }
+
+  function unlockManage() {
+    if (managePasscode !== ADMIN_ACTION_PASSCODE) {
+      toast.error("Incorrect passcode.");
+      return;
+    }
+    setManageUnlocked(true);
+    setActiveTab("manage");
+    setManageGateOpen(false);
+    setManagePasscode("");
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Toaster richColors position="top-center" />
@@ -124,7 +148,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           </Button>
         </div>
 
-        <Tabs defaultValue="summary" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="summary"><BarChart3 className="h-4 w-4 mr-1" />Summary</TabsTrigger>
             <TabsTrigger value="database"><Users className="h-4 w-4 mr-1" />Database</TabsTrigger>
@@ -155,6 +179,21 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             />
           </TabsContent>
         </Tabs>
+
+        <Dialog open={manageGateOpen} onOpenChange={setManageGateOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Manage Tab Passcode</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <Input
+                type="password"
+                placeholder="Enter passcode"
+                value={managePasscode}
+                onChange={(e) => setManagePasscode(e.target.value)}
+              />
+              <Button className="w-full" onClick={unlockManage}>Unlock Manage</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
       <Footer />
     </div>
@@ -163,6 +202,18 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
 /* -------- SUMMARY -------- */
 function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boolean }) {
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  function toDateKey(v: string | null | undefined) {
+    if (!v) return "";
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return "";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
   const stats = useMemo(() => {
     const total = enrollments.length;
     const male = enrollments.filter((e) => e.sex === "Male").length;
@@ -175,18 +226,39 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
       byStrand[e.strand ?? "—"] = (byStrand[e.strand ?? "—"] ?? 0) + 1;
       byPrev[e.previous_section ?? "—"] = (byPrev[e.previous_section ?? "—"] ?? 0) + 1;
     });
-    return { total, male, female, byTrack, byStrand, byPrev };
-  }, [enrollments]);
+    const inDay = enrollments.filter((e) => toDateKey(e.created_at) === selectedDate);
+    const maleToday = inDay.filter((e) => e.sex === "Male").length;
+    const femaleToday = inDay.filter((e) => e.sex === "Female").length;
+    return { total, male, female, byTrack, byStrand, byPrev, maleToday, femaleToday, totalToday: inDay.length };
+  }, [enrollments, selectedDate]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Filter registrants by date</Label>
+              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-52" />
+            </div>
+            <div className="text-xs text-muted-foreground pb-1">
+              For selected date: <span className="font-medium">Total {stats.totalToday}</span>, Male {stats.maleToday}, Female {stats.femaleToday}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total Enrollees" value={stats.total} />
         <StatCard label="Male" value={stats.male} />
         <StatCard label="Female" value={stats.female} />
         <StatCard label="Sections (Prev.)" value={Object.keys(stats.byPrev).length} />
+      </div>
+      <div className="grid sm:grid-cols-3 gap-3">
+        <StatCard label="Selected Day Total" value={stats.totalToday} />
+        <StatCard label="Selected Day Male" value={stats.maleToday} />
+        <StatCard label="Selected Day Female" value={stats.femaleToday} />
       </div>
       <div className="grid md:grid-cols-3 gap-3">
         <BreakdownCard title="By Track" data={stats.byTrack} />
@@ -236,6 +308,9 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [pendingVerify, setPendingVerify] = useState<any | null>(null);
   const [selectedVerifierId, setSelectedVerifierId] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deletePasscode, setDeletePasscode] = useState("");
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -272,6 +347,10 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
       })
       .eq("id", pendingVerify.id);
     if (error) {
+      if (error.message.includes("is_verified") && error.message.includes("schema cache")) {
+        toast.error("Database not updated yet. Run the updated SUPABASE_SCHEMA.sql in Supabase SQL Editor, then try again.");
+        return;
+      }
       toast.error(error.message);
       return;
     }
@@ -279,6 +358,24 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
     setVerifyOpen(false);
     setPendingVerify(null);
     setSelectedVerifierId("");
+    onRefresh();
+  }
+
+  async function deleteStudent() {
+    if (!pendingDelete) return;
+    if (deletePasscode !== ADMIN_ACTION_PASSCODE) {
+      toast.error("Incorrect passcode.");
+      return;
+    }
+    const { error } = await supabase.from("enrollments").delete().eq("id", pendingDelete.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Student deleted.");
+    setDeleteOpen(false);
+    setPendingDelete(null);
+    setDeletePasscode("");
     onRefresh();
   }
 
@@ -308,12 +405,12 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
                   <TableHead>Contact</TableHead>
                   <TableHead>Verification</TableHead>
                   <TableHead>Assigned</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((e: any) => (
-                  <TableRow key={e.id}>
+                  <TableRow key={e.id} className={e.is_verified ? "bg-yellow-100/70 hover:bg-yellow-100 dark:bg-yellow-500/20 dark:hover:bg-yellow-500/30" : ""}>
                     <TableCell className="font-mono text-xs font-semibold text-primary">
                       {e.control_no ? `SMNHS-${String(e.control_no).padStart(5, "0")}` : "—"}
                     </TableCell>
@@ -343,7 +440,19 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
                     </TableCell>
                     <TableCell>{e.assigned_section ? <Badge>{e.assigned_section}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => setView(e)}><Eye className="h-4 w-4" /></Button>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setView(e)}><Eye className="h-4 w-4" /></Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setPendingDelete(e);
+                            setDeleteOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -379,6 +488,24 @@ function DatabaseTab({ enrollments, loading, onRefresh, verifiers }: any) {
               </SelectContent>
             </Select>
             <Button onClick={verifyStudent} disabled={!selectedVerifierId} className="w-full">Confirm Verify</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Delete Student</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {pendingDelete ? `Delete ${pendingDelete.last_name}, ${pendingDelete.first_name}? Enter passcode to continue.` : "Enter passcode."}
+            </p>
+            <Input
+              type="password"
+              placeholder="Enter passcode"
+              value={deletePasscode}
+              onChange={(e) => setDeletePasscode(e.target.value)}
+            />
+            <Button variant="destructive" onClick={deleteStudent} className="w-full">Confirm Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
