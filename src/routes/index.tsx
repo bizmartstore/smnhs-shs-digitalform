@@ -121,13 +121,9 @@ function EnrollmentPage() {
       ["father_contact", "Father's Contact"],
       ["mother_name", "Mother's Name"], ["mother_occupation", "Mother's Occupation"],
       ["mother_contact", "Mother's Contact"],
-      ["guardian_name", "Guardian's Name"], ["guardian_relationship", "Guardian Relationship"],
+      ["guardian_name", "Legal Guardian's Name"], ["guardian_relationship", "Guardian Relationship"],
       ["guardian_contact", "Guardian Contact"],
       ["previous_school", "Previous School"], ["previous_school_address", "Previous School Address"],
-      ["height_m", "Height"], ["weight_kg", "Weight"], ["blood_type", "Blood Type"],
-      ["medical_conditions", "Medical Conditions"],
-      ["emergency_contact_person", "Emergency Contact Person"],
-      ["emergency_contact_number", "Emergency Contact Number"],
       ["learner_name", "Learner Name"],
       ["guardian_signatory_name", "Parent/Guardian Name"],
     ];
@@ -266,7 +262,7 @@ function EnrollmentPage() {
               <Field label="Mother's Name *"><Input className={cls("mother_name", "uppercase-input")} value={form.mother_name} onChange={handleText("mother_name")} /></Field>
               <Field label="Mother's Occupation *"><Input className={cls("mother_occupation", "uppercase-input")} value={form.mother_occupation} onChange={handleText("mother_occupation")} /></Field>
               <Field label="Mother's Contact Number *"><Input className={cls("mother_contact")} value={form.mother_contact} onChange={(e) => set("mother_contact", e.target.value)} /></Field>
-              <Field label="Guardian's Name *"><Input className={cls("guardian_name", "uppercase-input")} value={form.guardian_name} onChange={handleText("guardian_name")} /></Field>
+              <Field label="Legal Guardian's Name"><Input className={cls("guardian_name", "uppercase-input")} value={form.guardian_name} onChange={handleText("guardian_name")} /></Field>
               <Field label="Relationship to Learner *"><Input className={cls("guardian_relationship", "uppercase-input")} value={form.guardian_relationship} onChange={handleText("guardian_relationship")} /></Field>
               <Field label="Guardian's Contact Number *"><Input className={cls("guardian_contact")} value={form.guardian_contact} onChange={(e) => set("guardian_contact", e.target.value)} /></Field>
             </Grid>
@@ -314,7 +310,7 @@ function EnrollmentPage() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Regular Class Program">Regular Class Program</SelectItem>
-                    <SelectItem value="FLP : Open High School System">FLP : Open High School System</SelectItem>
+                    <SelectItem value="FLP : Open High School System" disabled>FLP : Open High School System</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -338,20 +334,7 @@ function EnrollmentPage() {
             </Grid>
           </Section>
 
-          <Section title="IV. Health Information">
-            <Grid>
-              <Field label="Height (m) *"><Input className={cls("height_m")} type="number" step="0.01" value={form.height_m} onChange={(e) => set("height_m", e.target.value)} /></Field>
-              <Field label="Weight (kg) *"><Input className={cls("weight_kg")} type="number" step="0.1" value={form.weight_kg} onChange={(e) => set("weight_kg", e.target.value)} /></Field>
-              <Field label="Blood Type *"><Input className={cls("blood_type", "uppercase-input")} value={form.blood_type} onChange={handleText("blood_type")} /></Field>
-              <Field label="Emergency Contact Person *"><Input className={cls("emergency_contact_person", "uppercase-input")} value={form.emergency_contact_person} onChange={handleText("emergency_contact_person")} /></Field>
-              <Field label="Emergency Contact Number *"><Input className={cls("emergency_contact_number")} value={form.emergency_contact_number} onChange={(e) => set("emergency_contact_number", e.target.value)} /></Field>
-            </Grid>
-            <Field label="Medical Conditions / Allergies *" hint="Type N/A if not applicable." full>
-              <Textarea className={cls("medical_conditions", "uppercase-input")} rows={2} value={form.medical_conditions} onChange={handleText("medical_conditions")} />
-            </Field>
-          </Section>
-
-          <Section title="V. Required Documents Submitted" hint="Please check at least one document.">
+          <Section title="IV. Required Documents Submitted" hint="Please check at least one document.">
             <div className={`grid sm:grid-cols-2 gap-3 rounded-md p-2 ${docInvalid ? "field-invalid" : ""}`}>
               <CheckRow checked={form.doc_sf9} onChange={(v) => { set("doc_sf9", v); if (v) clearInvalid("documents"); }} label="SF9 / Report Card (Original)" />
               <CheckRow checked={form.doc_psa} onChange={(v) => { set("doc_psa", v); if (v) clearInvalid("documents"); }} label="PSA Birth Certificate (Photocopy)" />
@@ -366,7 +349,7 @@ function EnrollmentPage() {
             )}
           </Section>
 
-          <Section title="VI. Certification">
+          <Section title="V. Certification">
             <p className="text-sm leading-relaxed text-muted-foreground">
               I hereby certify that all information provided in this enrollment form is true, complete,
               and correct to the best of my knowledge. Furthermore, I understand and agree to abide by
