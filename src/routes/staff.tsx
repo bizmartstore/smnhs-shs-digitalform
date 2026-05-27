@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -347,8 +347,6 @@ function SigPreview({ title, data }: { title: string; data: any }) {
     </div>
   );
 }
-
-import { useRef } from "react";
 
 /* -------- SECTIONING -------- */
 function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
