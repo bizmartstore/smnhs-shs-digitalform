@@ -376,11 +376,6 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
         <StatCard label="Selected Day Male" value={stats.maleToday} />
         <StatCard label="Selected Day Female" value={stats.femaleToday} />
       </div>
-      <div className="grid sm:grid-cols-3 gap-3">
-        <StatCard label="Selected Day Total" value={stats.totalToday} />
-        <StatCard label="Selected Day Male" value={stats.maleToday} />
-        <StatCard label="Selected Day Female" value={stats.femaleToday} />
-      </div>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Verified Enrollees</CardTitle>
