@@ -548,6 +548,20 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
     onRefresh();
   }
 
+  async function saveStudentEdits(studentId: string, payload: Record<string, any>) {
+    const { error } = await supabase
+      .from("enrollments")
+      .update(payload)
+      .eq("id", studentId);
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    toast.success("Student details updated.");
+    onRefresh();
+    return true;
+  }
+
   const documentSummary = (e: any) => {
     const docs: string[] = [];
     if (e.doc_sf9) docs.push("SF9");
@@ -654,7 +668,16 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Enrollment Details</DialogTitle></DialogHeader>
-          {view && <EnrollmentDetail data={view} />}
+          {view && (
+            <EnrollmentDetail
+              data={view}
+              onSave={async (payload) => {
+                const ok = await saveStudentEdits(view.id, payload);
+                if (ok) setView((prev: any) => (prev ? { ...prev, ...payload } : prev));
+                return ok;
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -679,9 +702,62 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
   );
 }
 
-function EnrollmentDetail({ data }: { data: any }) {
+const NON_EDITABLE_FIELDS = new Set([
+  "id",
+  "control_no",
+  "created_at",
+  "learner_signature_data",
+  "guardian_signature_data",
+  "signature_data",
+  "is_verified",
+  "verified_by_id",
+  "verified_by_name",
+  "verified_at",
+  "assigned_section",
+]);
+
+const BOOLEAN_FIELDS = new Set([
+  "doc_sf9",
+  "doc_psa",
+  "doc_other",
+  "doc_cor",
+  "doc_a5",
+  "certified",
+]);
+
+const NUMERIC_FIELDS = new Set(["age", "height_m", "weight_kg", "bmi"]);
+const DATE_FIELDS = new Set(["date_of_birth", "certified_at"]);
+
+function EnrollmentDetail({ data, onSave }: { data: any; onSave?: (payload: Record<string, any>) => Promise<boolean> }) {
   const skip = new Set(["signature_data", "learner_signature_data", "guardian_signature_data"]);
   const bmi = resolveBmi(data);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<Record<string, any>>({});
+
+  const editableEntries = useMemo(
+    () => Object.entries(data).filter(([k]) => !skip.has(k) && !NON_EDITABLE_FIELDS.has(k)),
+    [data],
+  );
+
+  useEffect(() => {
+    const nextDraft: Record<string, any> = {};
+    editableEntries.forEach(([k, v]) => {
+      if (v == null) {
+        nextDraft[k] = "";
+      } else if (BOOLEAN_FIELDS.has(k)) {
+        nextDraft[k] = Boolean(v) ? "true" : "false";
+      } else if (DATE_FIELDS.has(k)) {
+        const raw = String(v);
+        nextDraft[k] = raw.includes("T") ? raw.slice(0, 10) : raw;
+      } else {
+        nextDraft[k] = String(v);
+      }
+    });
+    setDraft(nextDraft);
+    setEditing(false);
+  }, [data, editableEntries]);
+
   const displayValue = (key: string, value: any) => {
     if (key === "bmi" && value != null && value !== "") {
       const n = Number(value);
@@ -692,6 +768,37 @@ function EnrollmentDetail({ data }: { data: any }) {
     }
     return String(value ?? "—");
   };
+
+  async function submitEdits() {
+    if (!onSave) return;
+    const payload: Record<string, any> = {};
+    editableEntries.forEach(([k]) => {
+      const raw = draft[k];
+      if (BOOLEAN_FIELDS.has(k)) {
+        payload[k] = raw === "true";
+        return;
+      }
+      if (NUMERIC_FIELDS.has(k)) {
+        if (raw === "" || raw == null) {
+          payload[k] = null;
+          return;
+        }
+        const n = Number(raw);
+        payload[k] = Number.isFinite(n) ? n : null;
+        return;
+      }
+      if (DATE_FIELDS.has(k)) {
+        payload[k] = raw ? raw : null;
+        return;
+      }
+      payload[k] = raw === "" ? null : raw;
+    });
+    setSaving(true);
+    const ok = await onSave(payload);
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
+
   return (
     <div className="space-y-3">
       {bmi != null && (
@@ -701,13 +808,53 @@ function EnrollmentDetail({ data }: { data: any }) {
           <span className="text-muted-foreground"> — {bmiCategory(bmi)}</span>
         </div>
       )}
+      {onSave && (
+        <div className="flex gap-2">
+          {!editing ? (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit Details</Button>
+          ) : (
+            <>
+              <Button size="sm" onClick={submitEdits} disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={saving}>
+                Cancel
+              </Button>
+            </>
+          )}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2 text-sm">
-        {Object.entries(data).filter(([k]) => !skip.has(k)).map(([k, v]) => (
-          <div key={k} className="border rounded p-2">
-            <div className="text-[10px] uppercase text-muted-foreground">{k}</div>
-            <div className="font-medium break-words">{displayValue(k, v)}</div>
-          </div>
-        ))}
+        {Object.entries(data).filter(([k]) => !skip.has(k)).map(([k, v]) => {
+          const editable = !NON_EDITABLE_FIELDS.has(k);
+          return (
+            <div key={k} className="border rounded p-2">
+              <div className="text-[10px] uppercase text-muted-foreground">{k}</div>
+              {editing && editable ? (
+                BOOLEAN_FIELDS.has(k) ? (
+                  <Select value={draft[k] ?? "false"} onValueChange={(value) => setDraft((prev) => ({ ...prev, [k]: value }))}>
+                    <SelectTrigger className="mt-1 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">YES</SelectItem>
+                      <SelectItem value="false">NO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    className="mt-1 h-8"
+                    type={NUMERIC_FIELDS.has(k) ? "number" : DATE_FIELDS.has(k) ? "date" : "text"}
+                    value={draft[k] ?? ""}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                  />
+                )
+              ) : (
+                <div className="font-medium break-words">{displayValue(k, v)}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <SigPreview title="Learner Signature" data={data.learner_signature_data} />
