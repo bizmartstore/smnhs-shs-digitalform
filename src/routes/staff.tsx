@@ -105,6 +105,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [dbFullName, setDbFullName] = useState("");
   const [dbPassword, setDbPassword] = useState("");
   const [currentVerifier, setCurrentVerifier] = useState<{ id: string; name: string } | null>(null);
+  const refreshDebounceRef = useRef<number | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -123,6 +124,31 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    // Event-driven sync: updates UI when rows change without constant polling.
+    const channel = supabase
+      .channel("staff-enrollments-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "enrollments" },
+        () => {
+          if (refreshDebounceRef.current != null) {
+            window.clearTimeout(refreshDebounceRef.current);
+          }
+          refreshDebounceRef.current = window.setTimeout(() => {
+            refresh();
+          }, 600);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshDebounceRef.current != null) {
+        window.clearTimeout(refreshDebounceRef.current);
+      }
+      supabase.removeChannel(channel);
+    };
+  }, []);
   useEffect(() => {
     const raw = localStorage.getItem(DB_VERIFIER_KEY);
     if (!raw) return;
