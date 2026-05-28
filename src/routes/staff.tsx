@@ -326,8 +326,7 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
     const total = enrollments.length;
     const male = enrollments.filter((e) => e.sex === "Male").length;
     const female = enrollments.filter((e) => e.sex === "Female").length;
-<<<<<<< HEAD
-    const verified = enrollments.filter((e) => e.is_verified);
+    const verified = enrollments.filter((e) => !!e.is_verified);
     const verifiedTotal = verified.length;
     const verifiedMale = verified.filter((e) => e.sex === "Male").length;
     const verifiedFemale = verified.filter((e) => e.sex === "Female").length;
@@ -336,10 +335,6 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
       const name = e.verified_by_name ?? "—";
       byVerifier[name] = (byVerifier[name] ?? 0) + 1;
     });
-=======
-    const verified = enrollments.filter((e) => !!e.is_verified);
-    const verifiedTotal = verified.length;
->>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
     const byTrack: Record<string, number> = {};
     const byStrand: Record<string, number> = {};
     const byPrev: Record<string, number> = {};
@@ -359,17 +354,17 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
     const inDay = enrollments.filter((e) => toDateKey(e.created_at) === selectedDate);
     const maleToday = inDay.filter((e) => e.sex === "Male").length;
     const femaleToday = inDay.filter((e) => e.sex === "Female").length;
-<<<<<<< HEAD
-    return { total, male, female, byTrack, byStrand, byPrev, byVerifier, maleToday, femaleToday, totalToday: inDay.length, verifiedTotal, verifiedMale, verifiedFemale };
-=======
     return {
       total,
       male,
       female,
       verifiedTotal,
+      verifiedMale,
+      verifiedFemale,
       byTrack,
       byStrand,
       byPrev,
+      byVerifier,
       verifiedByTrack,
       verifiedByStrand,
       verifiedByPrev,
@@ -377,7 +372,6 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
       femaleToday,
       totalToday: inDay.length,
     };
->>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
   }, [enrollments, selectedDate]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;

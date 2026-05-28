@@ -1,14 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
-<<<<<<< HEAD
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, RotateCcw, GraduationCap, Calendar, Hash, Camera, AlertTriangle } from "lucide-react";
-=======
-import { CheckCircle2, Download, RotateCcw, GraduationCap, Calendar, Hash } from "lucide-react";
-import { toast } from "sonner";
 import { bmiCategory } from "@/lib/utils";
->>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
 
 type Props = {
   control: string;

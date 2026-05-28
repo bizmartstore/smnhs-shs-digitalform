@@ -356,28 +356,6 @@ function EnrollmentPage() {
             </Grid>
           </Section>
 
-<<<<<<< HEAD
-          <Section title="IV. Health Information">
-            <Grid>
-              <Field label="Height (m)" hint="e.g. 1.65"><Input type="number" step="0.01" min={0} max={3} value={form.height_m} onChange={(e) => set("height_m", e.target.value)} /></Field>
-              <Field label="Weight (kg)" hint="e.g. 55"><Input type="number" step="0.1" min={0} max={300} value={form.weight_kg} onChange={(e) => set("weight_kg", e.target.value)} /></Field>
-              <Field label="Blood Type">
-                <Select value={form.blood_type} onValueChange={(v) => set("blood_type", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"].map((bt) => (
-                      <SelectItem key={bt} value={bt}>{bt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Medical Conditions / Allergies *" full hint="Type N/A if not applicable.">
-                <Input className={cls("medical_conditions", "uppercase-input")} value={form.medical_conditions} onChange={handleText("medical_conditions")} />
-              </Field>
-              <Field label="Emergency Contact Person"><Input className="uppercase-input" value={form.emergency_contact_person} onChange={handleText("emergency_contact_person")} /></Field>
-              <Field label="Emergency Contact Number"><Input inputMode="tel" value={form.emergency_contact_number} onChange={(e) => set("emergency_contact_number", e.target.value)} /></Field>
-            </Grid>
-=======
           <Section title="IV. Health Information" hint="Optional — leave blank if unknown.">
             <Grid>
               <Field label="Height (m)">
@@ -450,7 +428,6 @@ function EnrollmentPage() {
                 onChange={handleText("medical_conditions")}
               />
             </Field>
->>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
           </Section>
 
           <Section title="V. Required Documents Submitted" hint="Please check at least one document.">
