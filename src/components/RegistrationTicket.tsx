@@ -1,9 +1,8 @@
-import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
-import { CheckCircle2, Download, RotateCcw, GraduationCap, Calendar, Hash } from "lucide-react";
-import { toast } from "sonner";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle2, RotateCcw, GraduationCap, Calendar, Hash, Camera, AlertTriangle } from "lucide-react";
 
 type Props = {
   control: string;
@@ -18,59 +17,7 @@ type Props = {
 export function RegistrationTicket({
   control, learnerName, track, strand, previousSection, studentType, onAgain,
 }: Props) {
-  const ticketRef = useRef<HTMLDivElement>(null);
-  const [downloading, setDownloading] = useState(false);
   const date = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
-
-  async function download() {
-    if (!ticketRef.current) return;
-    setDownloading(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(ticketRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-      });
-      const fileName = `SMNHS-Ticket-${control}.png`;
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-      if (isMobile && "toBlob" in canvas) {
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-        if (!blob) throw new Error("Unable to generate ticket image.");
-        const file = new File([blob], fileName, { type: "image/png" });
-
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: "SMNHS Registration Ticket" });
-          toast.success("Ticket image ready to save/share.");
-          return;
-        }
-
-        const objectUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.download = fileName;
-        link.href = objectUrl;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
-        toast.success("Ticket downloaded!");
-        return;
-      }
-
-      const link = document.createElement("a");
-      link.download = fileName;
-      link.href = canvas.toDataURL("image/png");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("Ticket downloaded!");
-    } catch (err: any) {
-      toast.error("Failed to download. Try screenshot instead.");
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -84,9 +31,26 @@ export function RegistrationTicket({
           </p>
         </div>
 
+        {/* HIGHLIGHTED SCREENSHOT INSTRUCTION */}
+        <Alert className="mb-5 border-amber-400 bg-amber-50 text-amber-900">
+          <AlertTriangle className="h-5 w-5 text-amber-600" />
+          <AlertTitle className="font-bold text-amber-800">Important: Screenshot Your Ticket!</AlertTitle>
+          <AlertDescription className="text-amber-800">
+            <div className="mt-1 space-y-1">
+              <p className="flex items-start gap-2">
+                <Camera className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                <span>Please <strong>take a screenshot</strong> of your ticket below and save it to your device.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                <span>Present the screenshot to the <strong>Enrollment Officer</strong> at the Registrar's Office for verification.</span>
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+
         {/* TICKET */}
         <div
-          ref={ticketRef}
           className="relative mx-auto rounded-2xl overflow-hidden shadow-2xl bg-white"
           style={{ maxWidth: 560 }}
         >
@@ -152,10 +116,6 @@ export function RegistrationTicket({
         </div>
 
         <div className="mt-6 flex flex-col sm:flex-row gap-2 justify-center">
-          <Button onClick={download} disabled={downloading} size="lg">
-            <Download className="h-4 w-4 mr-1" />
-            {downloading ? "Preparing…" : "Download as Image"}
-          </Button>
           <Button variant="outline" size="lg" onClick={onAgain}>
             <RotateCcw className="h-4 w-4 mr-1" /> Submit Another Enrollment
           </Button>
