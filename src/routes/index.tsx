@@ -31,7 +31,7 @@ const UPPER_FIELDS = new Set([
   "father_name", "father_occupation", "mother_name", "mother_occupation",
   "guardian_name", "guardian_relationship",
   "previous_school", "previous_school_address", "previous_section",
-  "irregular_reason", "medical_conditions",
+  "irregular_reason", "medical_conditions", "blood_type",
   "emergency_contact_person", "other_documents",
   "learner_name", "guardian_signatory_name",
 ]);
@@ -121,7 +121,7 @@ function EnrollmentPage() {
     const bad = new Set<string>();
     const required: [string, string][] = [
       ["last_name", "Last Name"], ["first_name", "First Name"],
-      ["age", "Age"], ["nationality", "Nationality"],
+      ["lrn", "LRN"], ["age", "Age"], ["nationality", "Nationality"],
       ["date_of_birth", "Date of Birth"], ["place_of_birth", "Place of Birth"],
       ["religion", "Religion"], ["contact_number", "Contact Number"],
       ["home_address", "Complete Home Address"],
@@ -134,12 +134,17 @@ function EnrollmentPage() {
       ["previous_school", "Previous School"], ["previous_school_address", "Previous School Address"],
       ["learner_name", "Learner Name"],
       ["guardian_signatory_name", "Parent/Guardian Name"],
+      ["height_m", "Height"], ["weight_kg", "Weight"], ["blood_type", "Blood Type"],
+      ["emergency_contact_person", "Emergency Contact Person"],
+      ["emergency_contact_number", "Emergency Contact Number"],
+      ["medical_conditions", "Medical Conditions / Allergies"],
     ];
     if (isOldStudent) required.push(["previous_section", "Previous Section"]);
 
     for (const [k] of required) {
       if (!String(form[k] ?? "").trim()) bad.add(k);
     }
+    if (!/^\d{12}$/.test(String(form.lrn ?? "").trim())) bad.add("lrn");
     if (!form.sex) bad.add("sex");
     if (form.status === "Irregular" && !String(form.irregular_reason).trim()) bad.add("irregular_reason");
 
@@ -241,7 +246,7 @@ function EnrollmentPage() {
               <Field label="First Name *"><Input className={cls("first_name", "uppercase-input")} value={form.first_name} onChange={handleText("first_name")} /></Field>
               <Field label="Middle Name"><Input className="uppercase-input" value={form.middle_name} onChange={handleText("middle_name")} /></Field>
               <Field label="Extension (Jr., III)"><Input className="uppercase-input" value={form.extension_name} onChange={handleText("extension_name")} /></Field>
-              <Field label="LRN (12 digits)"><Input inputMode="numeric" maxLength={12} value={form.lrn} onChange={(e) => set("lrn", e.target.value.replace(/\D/g, "").slice(0, 12))} /></Field>
+              <Field label="LRN (12 digits) *"><Input className={cls("lrn")} inputMode="numeric" maxLength={12} value={form.lrn} onChange={(e) => set("lrn", e.target.value.replace(/\D/g, "").slice(0, 12))} /></Field>
               <Field label="Sex *">
                 <RadioGroup value={form.sex} onValueChange={(v) => set("sex", v)} className={`flex gap-4 pt-2 rounded-md px-2 ${invalid.has("sex") ? "field-invalid" : ""}`}>
                   <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="Male" /> Male</label>
@@ -356,9 +361,9 @@ function EnrollmentPage() {
             </Grid>
           </Section>
 
-          <Section title="IV. Health Information" hint="Optional — leave blank if unknown.">
+          <Section title="IV. Health Information" hint="Type N/A for Medical Conditions / Allergies if not applicable.">
             <Grid>
-              <Field label="Height (m)">
+              <Field label="Height (m) *">
                 <Input
                   className={cls("height_m")}
                   type="number"
@@ -369,7 +374,7 @@ function EnrollmentPage() {
                   onChange={(e) => set("height_m", e.target.value)}
                 />
               </Field>
-              <Field label="Weight (kg)">
+              <Field label="Weight (kg) *">
                 <Input
                   className={cls("weight_kg")}
                   type="number"
@@ -396,7 +401,7 @@ function EnrollmentPage() {
                   )}
                 </div>
               </Field>
-              <Field label="Blood Type">
+              <Field label="Blood Type *">
                 <Input
                   className={cls("blood_type", "uppercase-input")}
                   placeholder="e.g. O+"
@@ -404,14 +409,14 @@ function EnrollmentPage() {
                   onChange={handleText("blood_type")}
                 />
               </Field>
-              <Field label="Emergency Contact Person">
+              <Field label="Emergency Contact Person *">
                 <Input
                   className={cls("emergency_contact_person", "uppercase-input")}
                   value={form.emergency_contact_person}
                   onChange={handleText("emergency_contact_person")}
                 />
               </Field>
-              <Field label="Emergency Contact Number">
+              <Field label="Emergency Contact Number *">
                 <Input
                   className={cls("emergency_contact_number")}
                   inputMode="tel"
@@ -420,7 +425,7 @@ function EnrollmentPage() {
                 />
               </Field>
             </Grid>
-            <Field label="Medical Conditions / Allergies" hint="Type N/A if not applicable." full>
+            <Field label="Medical Conditions / Allergies *" full>
               <Textarea
                 className={cls("medical_conditions", "uppercase-input")}
                 rows={2}
