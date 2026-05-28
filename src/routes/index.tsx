@@ -17,6 +17,7 @@ import { SignaturePadField, type SignaturePadHandle } from "@/components/Signatu
 import { RegistrationTicket } from "@/components/RegistrationTicket";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
+import { bmiCategory, computeBmi, roundBmi } from "@/lib/utils";
 import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({ component: EnrollmentPage });
@@ -107,6 +108,11 @@ function EnrollmentPage() {
     return ["AFA", "IA", "ICT", "HE"];
   }, [form.track]);
 
+  const bmi = useMemo(
+    () => computeBmi(form.height_m, form.weight_kg),
+    [form.height_m, form.weight_kg],
+  );
+
   const isOldStudent = form.student_type === "Old Student";
 
   async function submit(e: React.FormEvent) {
@@ -164,6 +170,7 @@ function EnrollmentPage() {
         age: form.age ? Number(form.age) : null,
         height_m: form.height_m ? Number(form.height_m) : null,
         weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
+        bmi: bmi != null ? roundBmi(bmi) : null,
         previous_section: isOldStudent ? form.previous_section : null,
         learner_signature_data: learnerSig.current?.toData() ?? [],
         guardian_signature_data: guardianSig.current?.toData() ?? [],
@@ -180,7 +187,12 @@ function EnrollmentPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       toast.success("Enrollment submitted!");
     } catch (err: any) {
-      toast.error(err?.message ?? "Failed to submit. Please try again.");
+      const msg = err?.message ?? "Failed to submit. Please try again.";
+      if (msg.includes("bmi") && msg.includes("schema cache")) {
+        toast.error("Database not updated yet. Run the updated SUPABASE_SCHEMA.sql in Supabase SQL Editor, then try again.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -195,6 +207,7 @@ function EnrollmentPage() {
         strand={form.strand}
         previousSection={isOldStudent ? form.previous_section : "—"}
         studentType={form.student_type}
+        bmi={bmi}
         onAgain={() => { setForm(INITIAL); setDone(null); setInvalid(new Set()); }}
       />
     );
@@ -343,6 +356,7 @@ function EnrollmentPage() {
             </Grid>
           </Section>
 
+<<<<<<< HEAD
           <Section title="IV. Health Information">
             <Grid>
               <Field label="Height (m)" hint="e.g. 1.65"><Input type="number" step="0.01" min={0} max={3} value={form.height_m} onChange={(e) => set("height_m", e.target.value)} /></Field>
@@ -363,6 +377,80 @@ function EnrollmentPage() {
               <Field label="Emergency Contact Person"><Input className="uppercase-input" value={form.emergency_contact_person} onChange={handleText("emergency_contact_person")} /></Field>
               <Field label="Emergency Contact Number"><Input inputMode="tel" value={form.emergency_contact_number} onChange={(e) => set("emergency_contact_number", e.target.value)} /></Field>
             </Grid>
+=======
+          <Section title="IV. Health Information" hint="Optional — leave blank if unknown.">
+            <Grid>
+              <Field label="Height (m)">
+                <Input
+                  className={cls("height_m")}
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  placeholder="e.g. 1.65"
+                  value={form.height_m}
+                  onChange={(e) => set("height_m", e.target.value)}
+                />
+              </Field>
+              <Field label="Weight (kg)">
+                <Input
+                  className={cls("weight_kg")}
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  placeholder="e.g. 55"
+                  value={form.weight_kg}
+                  onChange={(e) => set("weight_kg", e.target.value)}
+                />
+              </Field>
+              <Field label="BMI">
+                <div
+                  className="flex h-9 w-full items-center rounded-md border border-input bg-muted/40 px-3 text-sm tabular-nums"
+                  aria-live="polite"
+                >
+                  {bmi != null ? (
+                    <span>
+                      <span className="font-semibold">{bmi.toFixed(1)}</span>
+                      <span className="text-muted-foreground ml-1">kg/m²</span>
+                      <span className="text-muted-foreground ml-2 text-xs">({bmiCategory(bmi)})</span>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Enter height and weight</span>
+                  )}
+                </div>
+              </Field>
+              <Field label="Blood Type">
+                <Input
+                  className={cls("blood_type", "uppercase-input")}
+                  placeholder="e.g. O+"
+                  value={form.blood_type}
+                  onChange={handleText("blood_type")}
+                />
+              </Field>
+              <Field label="Emergency Contact Person">
+                <Input
+                  className={cls("emergency_contact_person", "uppercase-input")}
+                  value={form.emergency_contact_person}
+                  onChange={handleText("emergency_contact_person")}
+                />
+              </Field>
+              <Field label="Emergency Contact Number">
+                <Input
+                  className={cls("emergency_contact_number")}
+                  inputMode="tel"
+                  value={form.emergency_contact_number}
+                  onChange={(e) => set("emergency_contact_number", e.target.value)}
+                />
+              </Field>
+            </Grid>
+            <Field label="Medical Conditions / Allergies" hint="Type N/A if not applicable." full>
+              <Textarea
+                className={cls("medical_conditions", "uppercase-input")}
+                rows={2}
+                value={form.medical_conditions}
+                onChange={handleText("medical_conditions")}
+              />
+            </Field>
+>>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
           </Section>
 
           <Section title="V. Required Documents Submitted" hint="Please check at least one document.">

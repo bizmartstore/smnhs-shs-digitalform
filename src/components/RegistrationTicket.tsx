@@ -1,8 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
+<<<<<<< HEAD
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, RotateCcw, GraduationCap, Calendar, Hash, Camera, AlertTriangle } from "lucide-react";
+=======
+import { CheckCircle2, Download, RotateCcw, GraduationCap, Calendar, Hash } from "lucide-react";
+import { toast } from "sonner";
+import { bmiCategory } from "@/lib/utils";
+>>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
 
 type Props = {
   control: string;
@@ -11,11 +17,12 @@ type Props = {
   strand: string;
   previousSection: string;
   studentType: string;
+  bmi?: number | null;
   onAgain: () => void;
 };
 
 export function RegistrationTicket({
-  control, learnerName, track, strand, previousSection, studentType, onAgain,
+  control, learnerName, track, strand, previousSection, studentType, bmi, onAgain,
 }: Props) {
   const date = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
 
@@ -98,6 +105,9 @@ export function RegistrationTicket({
               <Cell label="Track" value={track} />
               <Cell label="Strand" value={strand} />
               <Cell label="Prev. Section" value={previousSection || "—"} />
+              {bmi != null && (
+                <Cell label="BMI" value={`${bmi.toFixed(1)} (${bmiCategory(bmi)})`} />
+              )}
               <Cell label="Status" value="REGISTERED" highlight />
             </div>
 

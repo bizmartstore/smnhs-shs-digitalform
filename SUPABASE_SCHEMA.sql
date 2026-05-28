@@ -32,7 +32,7 @@ create table if not exists public.enrollments (
   preferred_program text, track text, strand text,
 
   -- Health
-  height_m numeric, weight_kg numeric, blood_type text,
+  height_m numeric, weight_kg numeric, bmi numeric, blood_type text,
   medical_conditions text,
   emergency_contact_person text, emergency_contact_number text,
 
@@ -63,7 +63,15 @@ alter table public.enrollments
   add column if not exists is_verified boolean default false,
   add column if not exists verified_by_id uuid,
   add column if not exists verified_by_name text,
-  add column if not exists verified_at timestamptz;
+  add column if not exists verified_at timestamptz,
+  add column if not exists bmi numeric;
+
+-- Backfill BMI for existing rows that have height and weight
+update public.enrollments
+set bmi = round((weight_kg / (height_m * height_m))::numeric, 1)
+where bmi is null
+  and height_m is not null and height_m > 0
+  and weight_kg is not null and weight_kg > 0;
 
 -- 2) Previous (Grade 11) sections — staff can extend the dropdown
 create table if not exists public.previous_sections (

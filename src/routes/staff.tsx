@@ -20,6 +20,7 @@ import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
 import { supabase, STAFF_PASSCODE } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
+import { bmiCategory, formatBmi, resolveBmi } from "@/lib/utils";
 import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download } from "lucide-react";
 
 export const Route = createFileRoute("/staff")({ component: StaffPage });
@@ -325,6 +326,7 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
     const total = enrollments.length;
     const male = enrollments.filter((e) => e.sex === "Male").length;
     const female = enrollments.filter((e) => e.sex === "Female").length;
+<<<<<<< HEAD
     const verified = enrollments.filter((e) => e.is_verified);
     const verifiedTotal = verified.length;
     const verifiedMale = verified.filter((e) => e.sex === "Male").length;
@@ -334,6 +336,10 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
       const name = e.verified_by_name ?? "—";
       byVerifier[name] = (byVerifier[name] ?? 0) + 1;
     });
+=======
+    const verified = enrollments.filter((e) => !!e.is_verified);
+    const verifiedTotal = verified.length;
+>>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
     const byTrack: Record<string, number> = {};
     const byStrand: Record<string, number> = {};
     const byPrev: Record<string, number> = {};
@@ -342,10 +348,36 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
       byStrand[e.strand ?? "—"] = (byStrand[e.strand ?? "—"] ?? 0) + 1;
       byPrev[e.previous_section ?? "—"] = (byPrev[e.previous_section ?? "—"] ?? 0) + 1;
     });
+    const verifiedByTrack: Record<string, number> = {};
+    const verifiedByStrand: Record<string, number> = {};
+    const verifiedByPrev: Record<string, number> = {};
+    verified.forEach((e) => {
+      verifiedByTrack[e.track ?? "—"] = (verifiedByTrack[e.track ?? "—"] ?? 0) + 1;
+      verifiedByStrand[e.strand ?? "—"] = (verifiedByStrand[e.strand ?? "—"] ?? 0) + 1;
+      verifiedByPrev[e.previous_section ?? "—"] = (verifiedByPrev[e.previous_section ?? "—"] ?? 0) + 1;
+    });
     const inDay = enrollments.filter((e) => toDateKey(e.created_at) === selectedDate);
     const maleToday = inDay.filter((e) => e.sex === "Male").length;
     const femaleToday = inDay.filter((e) => e.sex === "Female").length;
+<<<<<<< HEAD
     return { total, male, female, byTrack, byStrand, byPrev, byVerifier, maleToday, femaleToday, totalToday: inDay.length, verifiedTotal, verifiedMale, verifiedFemale };
+=======
+    return {
+      total,
+      male,
+      female,
+      verifiedTotal,
+      byTrack,
+      byStrand,
+      byPrev,
+      verifiedByTrack,
+      verifiedByStrand,
+      verifiedByPrev,
+      maleToday,
+      femaleToday,
+      totalToday: inDay.length,
+    };
+>>>>>>> 8e69d92 (ADD TOTAL VERIFIED SECTIONS)
   }, [enrollments, selectedDate]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -365,11 +397,17 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
           </div>
         </CardContent>
       </Card>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard label="Total Enrollees" value={stats.total} />
         <StatCard label="Male" value={stats.male} />
         <StatCard label="Female" value={stats.female} />
         <StatCard label="Sections (Prev.)" value={Object.keys(stats.byPrev).length} />
+        <StatCard label="Total Verified" value={stats.verifiedTotal} />
+      </div>
+      <div className="grid md:grid-cols-3 gap-3">
+        <BreakdownCard title="Total Verified by Track" data={stats.verifiedByTrack} />
+        <BreakdownCard title="Total Verified by Strand" data={stats.verifiedByStrand} />
+        <BreakdownCard title="Total Verified by Previous Section" data={stats.verifiedByPrev} />
       </div>
       <div className="grid sm:grid-cols-3 gap-3">
         <StatCard label="Selected Day Total" value={stats.totalToday} />
@@ -449,9 +487,13 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
 
   function exportCsv() {
     if (!filtered.length) return;
-    const cols = Object.keys(filtered[0]).filter((k) => !k.includes("signature_data"));
+    const rows = filtered.map((r: any) => {
+      const bmiVal = resolveBmi(r);
+      return { ...r, bmi: bmiVal != null ? bmiVal : r.bmi };
+    });
+    const cols = Object.keys(rows[0]).filter((k) => !k.includes("signature_data"));
     const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [cols.join(","), ...filtered.map((r: any) => cols.map((c) => esc(r[c])).join(","))].join("\n");
+    const csv = [cols.join(","), ...rows.map((r: any) => cols.map((c) => esc(r[c])).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -545,6 +587,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                   <TableHead>LRN</TableHead>
                   <TableHead>Prev. Section</TableHead>
                   <TableHead>Strand</TableHead>
+                  <TableHead>BMI</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Documents</TableHead>
                   <TableHead>Verification</TableHead>
@@ -562,6 +605,12 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                     <TableCell className="font-mono text-xs">{e.lrn || "—"}</TableCell>
                     <TableCell>{e.previous_section}</TableCell>
                     <TableCell>{e.strand}</TableCell>
+                    <TableCell className="text-xs tabular-nums">
+                      {(() => {
+                        const bmiVal = resolveBmi(e);
+                        return bmiVal != null ? formatBmi(bmiVal) : "—";
+                      })()}
+                    </TableCell>
                     <TableCell>{e.contact_number}</TableCell>
                     <TableCell className="text-xs">{documentSummary(e)}</TableCell>
                     <TableCell>
@@ -600,7 +649,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No enrollments yet.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -638,7 +687,12 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
 
 function EnrollmentDetail({ data }: { data: any }) {
   const skip = new Set(["signature_data", "learner_signature_data", "guardian_signature_data"]);
+  const bmi = resolveBmi(data);
   const displayValue = (key: string, value: any) => {
+    if (key === "bmi" && value != null && value !== "") {
+      const n = Number(value);
+      return Number.isFinite(n) ? `${n.toFixed(1)} kg/m² (${bmiCategory(n)})` : String(value);
+    }
     if (["doc_sf9", "doc_psa", "doc_other", "doc_cor", "doc_a5", "certified", "is_verified"].includes(key)) {
       return value ? "YES" : "NO";
     }
@@ -646,6 +700,13 @@ function EnrollmentDetail({ data }: { data: any }) {
   };
   return (
     <div className="space-y-3">
+      {bmi != null && (
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">BMI: </span>
+          <span className="font-semibold">{formatBmi(bmi)}</span>
+          <span className="text-muted-foreground"> — {bmiCategory(bmi)}</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-2 text-sm">
         {Object.entries(data).filter(([k]) => !skip.has(k)).map(([k, v]) => (
           <div key={k} className="border rounded p-2">
