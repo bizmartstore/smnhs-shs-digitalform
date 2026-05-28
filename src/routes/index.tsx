@@ -380,7 +380,7 @@ function EnrollmentPage() {
             )}
           </Section>
 
-          <Section title="V. Certification">
+          <Section title="VI. Certification">
             <p className="text-sm leading-relaxed text-muted-foreground">
               I hereby certify that all information provided in this enrollment form is true, complete,
               and correct to the best of my knowledge. Furthermore, I understand and agree to abide by
