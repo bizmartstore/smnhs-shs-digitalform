@@ -325,6 +325,15 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
     const total = enrollments.length;
     const male = enrollments.filter((e) => e.sex === "Male").length;
     const female = enrollments.filter((e) => e.sex === "Female").length;
+    const verified = enrollments.filter((e) => e.is_verified);
+    const verifiedTotal = verified.length;
+    const verifiedMale = verified.filter((e) => e.sex === "Male").length;
+    const verifiedFemale = verified.filter((e) => e.sex === "Female").length;
+    const byVerifier: Record<string, number> = {};
+    verified.forEach((e) => {
+      const name = e.verified_by_name ?? "—";
+      byVerifier[name] = (byVerifier[name] ?? 0) + 1;
+    });
     const byTrack: Record<string, number> = {};
     const byStrand: Record<string, number> = {};
     const byPrev: Record<string, number> = {};
@@ -336,7 +345,7 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
     const inDay = enrollments.filter((e) => toDateKey(e.created_at) === selectedDate);
     const maleToday = inDay.filter((e) => e.sex === "Male").length;
     const femaleToday = inDay.filter((e) => e.sex === "Female").length;
-    return { total, male, female, byTrack, byStrand, byPrev, maleToday, femaleToday, totalToday: inDay.length };
+    return { total, male, female, byTrack, byStrand, byPrev, byVerifier, maleToday, femaleToday, totalToday: inDay.length, verifiedTotal, verifiedMale, verifiedFemale };
   }, [enrollments, selectedDate]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -367,11 +376,24 @@ function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boo
         <StatCard label="Selected Day Male" value={stats.maleToday} />
         <StatCard label="Selected Day Female" value={stats.femaleToday} />
       </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Verified Enrollees</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <StatCard label="Total Verified" value={stats.verifiedTotal} />
+            <StatCard label="Verified Male" value={stats.verifiedMale} />
+            <StatCard label="Verified Female" value={stats.verifiedFemale} />
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid md:grid-cols-3 gap-3">
         <BreakdownCard title="By Track" data={stats.byTrack} />
         <BreakdownCard title="By Strand" data={stats.byStrand} />
         <BreakdownCard title="By Previous Section" data={stats.byPrev} />
       </div>
+      <BreakdownCard title="Verified by Verifier" data={stats.byVerifier} />
     </div>
   );
 }
