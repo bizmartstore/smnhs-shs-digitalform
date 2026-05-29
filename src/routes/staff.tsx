@@ -689,7 +689,10 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
       .eq("id", student.id)
       .single();
     if (fallback.error) toast.error(fallback.error.message);
-    else setView({ ...(fallback.data ?? student), bmi: resolveBmi(fallback.data ?? student), is_verified: false, assigned_section: null });
+    else {
+      const detailRow = (fallback.data ?? student) as any;
+      setView({ ...detailRow, bmi: resolveBmi(detailRow), is_verified: false, assigned_section: null });
+    }
     setViewLoading(false);
   }
 
