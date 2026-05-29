@@ -29,6 +29,29 @@ const AUTH_KEY = "smnhs_staff_auth";
 const ADMIN_ACTION_PASSCODE = "330506";
 const DB_VERIFIER_KEY = "smnhs_staff_db_verifier";
 
+// Keep the dashboard query lean. Signature JSON fields are intentionally excluded
+// because they make bulk dashboard loading very slow.
+const BASE_ENROLLMENT_COLS = [
+  "id","control_no","created_at",
+  "last_name","first_name","middle_name","extension_name",
+  "lrn","sex","age","nationality","mother_tongue",
+  "home_address","contact_number","date_of_birth","place_of_birth",
+  "religion","ethnicity","fourps","facebook_name",
+  "father_name","father_occupation","father_contact",
+  "mother_name","mother_occupation","mother_contact",
+  "guardian_name","guardian_relationship","guardian_contact",
+  "student_type","previous_school","previous_school_address","previous_section",
+  "status","irregular_reason","preferred_program","track","strand",
+  "height_m","weight_kg","blood_type","medical_conditions",
+  "emergency_contact_person","emergency_contact_number",
+  "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
+  "learner_name","guardian_signatory_name","certified","certified_at",
+];
+
+const OPTIONAL_ENROLLMENT_COLS = ["bmi", "is_verified", "verified_by_id", "verified_by_name", "verified_at", "assigned_section"];
+const ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS].join(",");
+const LEGACY_ENROLLMENT_COLS = BASE_ENROLLMENT_COLS.join(",");
+
 function StaffPage() {
   const [authed, setAuthed] = useState(false);
   const [passcode, setPasscode] = useState("");
