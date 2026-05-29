@@ -1044,8 +1044,18 @@ function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: an
     if (error) toast.error(error.message); else { toast.success("Verifier added."); setNewVerifier(""); onRefresh(); }
   }
   async function delVerifier(id: string) {
+    if (!confirm("Remove this verifier?")) return;
     const { error } = await supabase.from("verifiers").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Verifier removed."); onRefresh(); }
+  }
+  async function renameVerifier(id: string, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) { toast.error("Name cannot be empty."); return false; }
+    const { error } = await supabase.from("verifiers").update({ name: trimmed }).eq("id", id);
+    if (error) { toast.error(error.message); return false; }
+    toast.success("Verifier updated.");
+    onRefresh();
+    return true;
   }
 
   const customPrev = sections.filter((s: string) => !defaults.includes(s));
