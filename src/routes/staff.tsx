@@ -29,6 +29,43 @@ const AUTH_KEY = "smnhs_staff_auth";
 const ADMIN_ACTION_PASSCODE = "330506";
 const DB_VERIFIER_KEY = "smnhs_staff_db_verifier";
 
+// Keep the dashboard query lean. Signature JSON fields are intentionally excluded
+// because they make bulk dashboard loading very slow.
+const BASE_ENROLLMENT_COLS = [
+  "id","control_no","created_at",
+  "last_name","first_name","middle_name","extension_name",
+  "lrn","sex","age","nationality","mother_tongue",
+  "home_address","contact_number","date_of_birth","place_of_birth",
+  "religion","ethnicity","fourps","facebook_name",
+  "father_name","father_occupation","father_contact",
+  "mother_name","mother_occupation","mother_contact",
+  "guardian_name","guardian_relationship","guardian_contact",
+  "student_type","previous_school","previous_school_address","previous_section",
+  "status","irregular_reason","preferred_program","track","strand",
+  "height_m","weight_kg","blood_type","medical_conditions",
+  "emergency_contact_person","emergency_contact_number",
+  "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
+  "learner_name","guardian_signatory_name","certified","certified_at",
+];
+
+const DASHBOARD_ENROLLMENT_COLS = [
+  "id","control_no","created_at",
+  "last_name","first_name","lrn","sex","contact_number",
+  "previous_section","track","strand","height_m","weight_kg",
+  "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
+];
+
+const OPTIONAL_ENROLLMENT_COLS = ["bmi", "is_verified", "verified_by_id", "verified_by_name", "verified_at", "assigned_section"];
+const ENROLLMENT_COLS = [...DASHBOARD_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS].join(",");
+const LEGACY_ENROLLMENT_COLS = DASHBOARD_ENROLLMENT_COLS.join(",");
+const DETAIL_ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS, "learner_signature_data", "guardian_signature_data"].join(",");
+const LEGACY_DETAIL_ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, "learner_signature_data", "guardian_signature_data"].join(",");
+
+function isMissingEnrollmentColumn(message: string) {
+  const lower = message.toLowerCase();
+  return ["schema cache", "column", "is_verified", "assigned_section", "bmi", "verified_by"].some((text) => lower.includes(text));
+}
+
 function StaffPage() {
   const [authed, setAuthed] = useState(false);
   const [passcode, setPasscode] = useState("");
@@ -107,42 +144,56 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [currentVerifier, setCurrentVerifier] = useState<{ id: string; name: string } | null>(null);
   const refreshDebounceRef = useRef<number | null>(null);
 
+  async function loadEnrollments() {
+    const primary = await supabase
+      .from("enrollments")
+      .select(ENROLLMENT_COLS)
+      .order("created_at", { ascending: false });
+
+    if (!primary.error) return primary.data ?? [];
+
+    if (!isMissingEnrollmentColumn(primary.error.message)) throw primary.error;
+
+    toast.warning("Dashboard loaded in compatibility mode. Please run the updated SUPABASE_SCHEMA.sql to enable verification fields.");
+    const fallback = await supabase
+      .from("enrollments")
+      .select(LEGACY_ENROLLMENT_COLS)
+      .order("created_at", { ascending: false });
+    if (fallback.error) throw fallback.error;
+    return (fallback.data ?? []).map((row: any) => ({
+      ...row,
+      bmi: resolveBmi(row),
+      is_verified: false,
+      verified_by_id: null,
+      verified_by_name: null,
+      verified_at: null,
+      assigned_section: null,
+    }));
+  }
+
   async function refresh() {
     setLoading(true);
-    // NOTE: exclude heavy jsonb signature columns (learner_signature_data,
-    // guardian_signature_data) — those payloads can be huge and made the
-    // dashboard slow / appear stuck. They aren't shown in the list or detail
-    // view, so we omit them from the bulk fetch.
-    const ENROLLMENT_COLS = [
-      "id","control_no","created_at",
-      "last_name","first_name","middle_name","extension_name",
-      "lrn","sex","age","nationality","mother_tongue",
-      "home_address","contact_number","date_of_birth","place_of_birth",
-      "religion","ethnicity","fourps","facebook_name",
-      "father_name","father_occupation","father_contact",
-      "mother_name","mother_occupation","mother_contact",
-      "guardian_name","guardian_relationship","guardian_contact",
-      "student_type","previous_school","previous_school_address","previous_section",
-      "status","irregular_reason","preferred_program","track","strand",
-      "height_m","weight_kg","bmi","blood_type","medical_conditions",
-      "emergency_contact_person","emergency_contact_number",
-      "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
-      "learner_name","guardian_signatory_name","certified","certified_at",
-      "is_verified","verified_by_id","verified_by_name","verified_at",
-      "assigned_section",
-    ].join(",");
-    const [{ data: enr }, { data: prev }, { data: g12 }, { data: vfr }] = await Promise.all([
-      supabase.from("enrollments").select(ENROLLMENT_COLS).order("created_at", { ascending: false }),
-      supabase.from("previous_sections").select("name").order("name"),
-      supabase.from("grade12_sections").select("id, name").order("name"),
-      supabase.from("verifiers").select("id, name").order("name"),
-    ]);
-    setEnrollments(enr ?? []);
-    const extra = (prev ?? []).map((r: any) => r.name);
-    setSections(Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra])));
-    setG12Sections(g12 ?? []);
-    setVerifiers(vfr ?? []);
-    setLoading(false);
+    try {
+      const enr = await loadEnrollments();
+      setEnrollments(enr);
+      setLoading(false);
+
+      void Promise.allSettled([
+        supabase.from("previous_sections").select("name").order("name"),
+        supabase.from("grade12_sections").select("id, name").order("name"),
+        supabase.from("verifiers").select("id, name").order("name"),
+      ]).then(([prevRes, g12Res, vfrRes]) => {
+        if (prevRes.status === "fulfilled" && !prevRes.value.error) {
+          const extra = (prevRes.value.data ?? []).map((r: any) => r.name);
+          setSections(Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra])));
+        }
+        if (g12Res.status === "fulfilled" && !g12Res.value.error) setG12Sections(g12Res.value.data ?? []);
+        if (vfrRes.status === "fulfilled" && !vfrRes.value.error) setVerifiers(vfrRes.value.data ?? []);
+      });
+    } catch (error: any) {
+      toast.error(error?.message ?? "Unable to load dashboard data.");
+      setLoading(false);
+    }
   }
 
   useEffect(() => { refresh(); }, []);
@@ -514,6 +565,7 @@ function BreakdownCard({ title, data }: { title: string; data: Record<string, nu
 function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) {
   const [q, setQ] = useState("");
   const [view, setView] = useState<any | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deletePasscode, setDeletePasscode] = useState("");
@@ -610,6 +662,40 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
     return true;
   }
 
+  async function openStudentDetails(student: any) {
+    setView(student);
+    setViewLoading(true);
+    const primary = await supabase
+      .from("enrollments")
+      .select(DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+
+    if (!primary.error) {
+      setView(primary.data ?? student);
+      setViewLoading(false);
+      return;
+    }
+
+    if (!isMissingEnrollmentColumn(primary.error.message)) {
+      toast.error(primary.error.message);
+      setViewLoading(false);
+      return;
+    }
+
+    const fallback = await supabase
+      .from("enrollments")
+      .select(LEGACY_DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+    if (fallback.error) toast.error(fallback.error.message);
+    else {
+      const detailRow = (fallback.data ?? student) as any;
+      setView({ ...detailRow, bmi: resolveBmi(detailRow), is_verified: false, assigned_section: null });
+    }
+    setViewLoading(false);
+  }
+
   const documentSummary = (e: any) => {
     const docs: string[] = [];
     if (e.doc_sf9) docs.push("SF9");
@@ -689,7 +775,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                     <TableCell>{e.assigned_section ? <Badge>{e.assigned_section}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setView(e)}><Eye className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => openStudentDetails(e)}><Eye className="h-4 w-4" /></Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -716,7 +802,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Enrollment Details</DialogTitle></DialogHeader>
-          {view && (
+          {viewLoading ? <p className="text-sm text-muted-foreground">Loading student details…</p> : view && (
             <EnrollmentDetail
               data={view}
               onSave={async (payload) => {
