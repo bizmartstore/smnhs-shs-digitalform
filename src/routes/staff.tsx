@@ -48,9 +48,23 @@ const BASE_ENROLLMENT_COLS = [
   "learner_name","guardian_signatory_name","certified","certified_at",
 ];
 
+const DASHBOARD_ENROLLMENT_COLS = [
+  "id","control_no","created_at",
+  "last_name","first_name","lrn","sex","contact_number",
+  "previous_section","track","strand","height_m","weight_kg",
+  "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
+];
+
 const OPTIONAL_ENROLLMENT_COLS = ["bmi", "is_verified", "verified_by_id", "verified_by_name", "verified_at", "assigned_section"];
-const ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS].join(",");
-const LEGACY_ENROLLMENT_COLS = BASE_ENROLLMENT_COLS.join(",");
+const ENROLLMENT_COLS = [...DASHBOARD_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS].join(",");
+const LEGACY_ENROLLMENT_COLS = DASHBOARD_ENROLLMENT_COLS.join(",");
+const DETAIL_ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, ...OPTIONAL_ENROLLMENT_COLS, "learner_signature_data", "guardian_signature_data"].join(",");
+const LEGACY_DETAIL_ENROLLMENT_COLS = [...BASE_ENROLLMENT_COLS, "learner_signature_data", "guardian_signature_data"].join(",");
+
+function isMissingEnrollmentColumn(message: string) {
+  const lower = message.toLowerCase();
+  return ["schema cache", "column", "is_verified", "assigned_section", "bmi", "verified_by"].some((text) => lower.includes(text));
+}
 
 function StaffPage() {
   const [authed, setAuthed] = useState(false);
