@@ -1128,14 +1128,53 @@ function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: an
           <div className="space-y-1">
             {verifiers.length === 0 && <p className="text-xs text-muted-foreground">No verifiers yet.</p>}
             {verifiers.map((v: any) => (
-              <div key={v.id} className="flex items-center justify-between border rounded px-2 py-1.5">
-                <span className="text-sm">{v.name}</span>
-                <Button size="sm" variant="ghost" onClick={() => delVerifier(v.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-              </div>
+              <VerifierRow key={v.id} verifier={v} onRename={renameVerifier} onDelete={delVerifier} />
             ))}
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function VerifierRow({ verifier, onRename, onDelete }: { verifier: { id: string; name: string }; onRename: (id: string, name: string) => Promise<boolean>; onDelete: (id: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(verifier.name);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (value.trim() === verifier.name) { setEditing(false); return; }
+    setSaving(true);
+    const ok = await onRename(verifier.id, value);
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
+
+  return (
+    <div className="flex items-center justify-between border rounded px-2 py-1.5 gap-2">
+      {editing ? (
+        <>
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setValue(verifier.name); setEditing(false); } }}
+            autoFocus
+            className="h-8"
+          />
+          <div className="flex gap-1 shrink-0">
+            <Button size="sm" variant="ghost" disabled={saving} onClick={save}><Check className="h-4 w-4 text-green-600" /></Button>
+            <Button size="sm" variant="ghost" disabled={saving} onClick={() => { setValue(verifier.name); setEditing(false); }}><X className="h-4 w-4" /></Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className="text-sm truncate">{verifier.name}</span>
+          <div className="flex gap-1 shrink-0">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" /></Button>
+            <Button size="sm" variant="ghost" onClick={() => onDelete(verifier.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
