@@ -152,10 +152,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
     if (!primary.error) return primary.data ?? [];
 
-    const missingNewColumn = ["schema cache", "column", "is_verified", "assigned_section", "bmi"].some((text) =>
-      primary.error.message.toLowerCase().includes(text),
-    );
-    if (!missingNewColumn) throw primary.error;
+    if (!isMissingEnrollmentColumn(primary.error.message)) throw primary.error;
 
     toast.warning("Dashboard loaded in compatibility mode. Please run the updated SUPABASE_SCHEMA.sql to enable verification fields.");
     const fallback = await supabase
@@ -568,6 +565,7 @@ function BreakdownCard({ title, data }: { title: string; data: Record<string, nu
 function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) {
   const [q, setQ] = useState("");
   const [view, setView] = useState<any | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deletePasscode, setDeletePasscode] = useState("");
@@ -664,6 +662,37 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
     return true;
   }
 
+  async function openStudentDetails(student: any) {
+    setView(student);
+    setViewLoading(true);
+    const primary = await supabase
+      .from("enrollments")
+      .select(DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+
+    if (!primary.error) {
+      setView(primary.data ?? student);
+      setViewLoading(false);
+      return;
+    }
+
+    if (!isMissingEnrollmentColumn(primary.error.message)) {
+      toast.error(primary.error.message);
+      setViewLoading(false);
+      return;
+    }
+
+    const fallback = await supabase
+      .from("enrollments")
+      .select(LEGACY_DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+    if (fallback.error) toast.error(fallback.error.message);
+    else setView({ ...(fallback.data ?? student), bmi: resolveBmi(fallback.data ?? student), is_verified: false, assigned_section: null });
+    setViewLoading(false);
+  }
+
   const documentSummary = (e: any) => {
     const docs: string[] = [];
     if (e.doc_sf9) docs.push("SF9");
@@ -743,7 +772,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
                     <TableCell>{e.assigned_section ? <Badge>{e.assigned_section}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setView(e)}><Eye className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => openStudentDetails(e)}><Eye className="h-4 w-4" /></Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -770,7 +799,7 @@ function DatabaseTab({ enrollments, loading, onRefresh, currentVerifier }: any) 
       <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Enrollment Details</DialogTitle></DialogHeader>
-          {view && (
+          {viewLoading ? <p className="text-sm text-muted-foreground">Loading student details…</p> : view && (
             <EnrollmentDetail
               data={view}
               onSave={async (payload) => {
