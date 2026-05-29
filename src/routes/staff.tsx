@@ -21,7 +21,7 @@ import { Footer } from "@/components/Footer";
 import { supabase, STAFF_PASSCODE } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
 import { bmiCategory, formatBmi, resolveBmi } from "@/lib/utils";
-import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download } from "lucide-react";
+import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download, Pencil, Check, X } from "lucide-react";
 
 export const Route = createFileRoute("/staff")({ component: StaffPage });
 
