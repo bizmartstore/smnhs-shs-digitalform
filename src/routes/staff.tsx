@@ -109,8 +109,30 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   async function refresh() {
     setLoading(true);
+    // NOTE: exclude heavy jsonb signature columns (learner_signature_data,
+    // guardian_signature_data) — those payloads can be huge and made the
+    // dashboard slow / appear stuck. They aren't shown in the list or detail
+    // view, so we omit them from the bulk fetch.
+    const ENROLLMENT_COLS = [
+      "id","control_no","created_at",
+      "last_name","first_name","middle_name","extension_name",
+      "lrn","sex","age","nationality","mother_tongue",
+      "home_address","contact_number","date_of_birth","place_of_birth",
+      "religion","ethnicity","fourps","facebook_name",
+      "father_name","father_occupation","father_contact",
+      "mother_name","mother_occupation","mother_contact",
+      "guardian_name","guardian_relationship","guardian_contact",
+      "student_type","previous_school","previous_school_address","previous_section",
+      "status","irregular_reason","preferred_program","track","strand",
+      "height_m","weight_kg","bmi","blood_type","medical_conditions",
+      "emergency_contact_person","emergency_contact_number",
+      "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
+      "learner_name","guardian_signatory_name","certified","certified_at",
+      "is_verified","verified_by_id","verified_by_name","verified_at",
+      "assigned_section",
+    ].join(",");
     const [{ data: enr }, { data: prev }, { data: g12 }, { data: vfr }] = await Promise.all([
-      supabase.from("enrollments").select("*").order("created_at", { ascending: false }),
+      supabase.from("enrollments").select(ENROLLMENT_COLS).order("created_at", { ascending: false }),
       supabase.from("previous_sections").select("name").order("name"),
       supabase.from("grade12_sections").select("id, name").order("name"),
       supabase.from("verifiers").select("id, name").order("name"),
