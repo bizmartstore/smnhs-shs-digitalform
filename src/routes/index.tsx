@@ -337,7 +337,7 @@ function EnrollmentPage() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Regular Class Program">Regular Class Program</SelectItem>
-                    <SelectItem value="FLP : Open High School System" disabled>FLP : Open High School System</SelectItem>
+                    <SelectItem value="FLP: Open High School System">FLP: Open High School System</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
