@@ -1036,14 +1036,22 @@ function SigPreview({ title, data }: { title: string; data: any }) {
 /* -------- SECTIONING -------- */
 function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
   const [filter, setFilter] = useState<string>("ALL");
+  const [q, setQ] = useState("");
   const [rosterSection, setRosterSection] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "word" | null>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
   const verified = enrollments.filter((e: any) => !!e.is_verified);
 
-  const filtered = verified.filter((e: any) =>
-    filter === "ALL" ? true : (e.previous_section ?? "") === filter,
-  );
+  const filtered = verified.filter((e: any) => {
+    const sectionMatch = filter === "ALL" || (e.previous_section ?? "") === filter;
+    const s = q.trim().toLowerCase();
+    const nameMatch =
+      !s ||
+      [e.last_name, e.first_name, e.middle_name].some((v) =>
+        String(v ?? "").toLowerCase().includes(s),
+      );
+    return sectionMatch && nameMatch;
+  });
 
   const prevOptions = Array.from(new Set(verified.map((e: any) => e.previous_section).filter(Boolean))) as string[];
 
@@ -1138,6 +1146,15 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Search Name</Label>
+              <Input
+                placeholder="Search name…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="w-56"
+              />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Filter by Previous Section</Label>
               <Select value={filter} onValueChange={setFilter}>
