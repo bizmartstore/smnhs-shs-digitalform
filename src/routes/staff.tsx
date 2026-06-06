@@ -427,122 +427,48 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
 /* -------- SUMMARY -------- */
 function SummaryTab({ enrollments, loading }: { enrollments: any[]; loading: boolean }) {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
-
-  function toDateKey(v: string | null | undefined) {
-    if (!v) return "";
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return "";
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
   const stats = useMemo(() => {
-    const total = enrollments.length;
-    const male = enrollments.filter((e) => e.sex === "Male").length;
-    const female = enrollments.filter((e) => e.sex === "Female").length;
     const verified = enrollments.filter((e) => !!e.is_verified);
-    const verifiedTotal = verified.length;
-    const verifiedMale = verified.filter((e) => e.sex === "Male").length;
-    const verifiedFemale = verified.filter((e) => e.sex === "Female").length;
-    const byVerifier: Record<string, number> = {};
-    verified.forEach((e) => {
-      const name = e.verified_by_name ?? "—";
-      byVerifier[name] = (byVerifier[name] ?? 0) + 1;
-    });
     const byTrack: Record<string, number> = {};
     const byStrand: Record<string, number> = {};
     const byPrev: Record<string, number> = {};
-    enrollments.forEach((e) => {
+    verified.forEach((e) => {
       byTrack[e.track ?? "—"] = (byTrack[e.track ?? "—"] ?? 0) + 1;
       byStrand[e.strand ?? "—"] = (byStrand[e.strand ?? "—"] ?? 0) + 1;
       byPrev[e.previous_section ?? "—"] = (byPrev[e.previous_section ?? "—"] ?? 0) + 1;
     });
-    const verifiedByTrack: Record<string, number> = {};
-    const verifiedByStrand: Record<string, number> = {};
-    const verifiedByPrev: Record<string, number> = {};
-    verified.forEach((e) => {
-      verifiedByTrack[e.track ?? "—"] = (verifiedByTrack[e.track ?? "—"] ?? 0) + 1;
-      verifiedByStrand[e.strand ?? "—"] = (verifiedByStrand[e.strand ?? "—"] ?? 0) + 1;
-      verifiedByPrev[e.previous_section ?? "—"] = (verifiedByPrev[e.previous_section ?? "—"] ?? 0) + 1;
-    });
-    const inDay = enrollments.filter((e) => toDateKey(e.created_at) === selectedDate);
-    const maleToday = inDay.filter((e) => e.sex === "Male").length;
-    const femaleToday = inDay.filter((e) => e.sex === "Female").length;
     return {
-      total,
-      male,
-      female,
-      verifiedTotal,
-      verifiedMale,
-      verifiedFemale,
+      total: verified.length,
+      male: verified.filter((e) => e.sex === "Male").length,
+      female: verified.filter((e) => e.sex === "Female").length,
       byTrack,
       byStrand,
       byPrev,
-      byVerifier,
-      verifiedByTrack,
-      verifiedByStrand,
-      verifiedByPrev,
-      maleToday,
-      femaleToday,
-      totalToday: inDay.length,
     };
-  }, [enrollments, selectedDate]);
+  }, [enrollments]);
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-5">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Filter registrants by date</Label>
-              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-52" />
-            </div>
-            <div className="text-xs text-muted-foreground pb-1">
-              For selected date: <span className="font-medium">Total {stats.totalToday}</span>, Male {stats.maleToday}, Female {stats.femaleToday}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Enrollees" value={stats.total} />
-        <StatCard label="Male" value={stats.male} />
-        <StatCard label="Female" value={stats.female} />
-        <StatCard label="Sections (Prev.)" value={Object.keys(stats.byPrev).length} />
-        <StatCard label="Total Verified" value={stats.verifiedTotal} />
-      </div>
-      <div className="grid md:grid-cols-3 gap-3">
-        <BreakdownCard title="Total Verified by Track" data={stats.verifiedByTrack} />
-        <BreakdownCard title="Total Verified by Strand" data={stats.verifiedByStrand} />
-        <BreakdownCard title="Total Verified by Previous Section" data={stats.verifiedByPrev} />
-      </div>
-      <div className="grid sm:grid-cols-3 gap-3">
-        <StatCard label="Selected Day Total" value={stats.totalToday} />
-        <StatCard label="Selected Day Male" value={stats.maleToday} />
-        <StatCard label="Selected Day Female" value={stats.femaleToday} />
-      </div>
-      <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Verified Enrollees</CardTitle>
+          <CardTitle className="text-base">Verified Students Summary</CardTitle>
+          <p className="text-xs text-muted-foreground">Counts include only verified enrollees.</p>
         </CardHeader>
         <CardContent>
           <div className="grid sm:grid-cols-3 gap-3">
-            <StatCard label="Total Verified" value={stats.verifiedTotal} />
-            <StatCard label="Verified Male" value={stats.verifiedMale} />
-            <StatCard label="Verified Female" value={stats.verifiedFemale} />
+            <StatCard label="Total Verified" value={stats.total} />
+            <StatCard label="Verified Male" value={stats.male} />
+            <StatCard label="Verified Female" value={stats.female} />
           </div>
         </CardContent>
       </Card>
       <div className="grid md:grid-cols-3 gap-3">
-        <BreakdownCard title="By Track" data={stats.byTrack} />
-        <BreakdownCard title="By Strand" data={stats.byStrand} />
-        <BreakdownCard title="By Previous Section" data={stats.byPrev} />
+        <BreakdownCard title="Verified by Track" data={stats.byTrack} />
+        <BreakdownCard title="Verified by Strand" data={stats.byStrand} />
+        <BreakdownCard title="Verified by Previous Section" data={stats.byPrev} />
       </div>
-      <BreakdownCard title="Verified by Verifier" data={stats.byVerifier} />
     </div>
   );
 }
