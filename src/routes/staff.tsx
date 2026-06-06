@@ -188,14 +188,24 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
       void Promise.allSettled([
         supabase.from("previous_sections").select("name").order("name"),
-        supabase.from("grade12_sections").select("id, name").order("name"),
+        supabase.from("grade12_sections").select("id, name, adviser_name").order("name"),
         supabase.from("verifiers").select("id, name").order("name"),
-      ]).then(([prevRes, g12Res, vfrRes]) => {
+      ]).then(async ([prevRes, g12Res, vfrRes]) => {
         if (prevRes.status === "fulfilled" && !prevRes.value.error) {
           const extra = (prevRes.value.data ?? []).map((r: any) => r.name);
           setSections(Array.from(new Set([...DEFAULT_PREVIOUS_SECTIONS, ...extra])));
         }
-        if (g12Res.status === "fulfilled" && !g12Res.value.error) setG12Sections(g12Res.value.data ?? []);
+        if (g12Res.status === "fulfilled") {
+          if (!g12Res.value.error) {
+            setG12Sections(g12Res.value.data ?? []);
+          } else if (String(g12Res.value.error.message).includes("adviser_name")) {
+            const fallback = await supabase.from("grade12_sections").select("id, name").order("name");
+            if (!fallback.error) {
+              setG12Sections((fallback.data ?? []).map((row: any) => ({ ...row, adviser_name: null })));
+              toast.warning("Run the updated SUPABASE_SCHEMA.sql to enable class adviser names on section lists.");
+            }
+          }
+        }
         if (vfrRes.status === "fulfilled" && !vfrRes.value.error) setVerifiers(vfrRes.value.data ?? []);
       });
     } catch (error: any) {
@@ -1043,11 +1053,15 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
         .map((e: any) => ({
           last_name: e.last_name,
           first_name: e.first_name,
+          middle_name: e.middle_name,
           lrn: e.lrn,
           sex: e.sex,
           strand: e.strand,
         }))
     : [];
+
+  const rosterAdviser =
+    g12Sections.find((s: any) => s.name === rosterSection)?.adviser_name ?? null;
 
   async function assign(id: string, section: string | null) {
     const { error } = await supabase.from("enrollments").update({ assigned_section: section }).eq("id", id);
@@ -1062,22 +1076,30 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
     if (error) toast.error(error.message); else { toast.success(`Assigned ${ids.length} student(s).`); onRefresh(); }
   }
 
+  function rosterLogoSrc() {
+    return rosterRef.current?.querySelector<HTMLImageElement>(".roster-logo")?.src ?? "";
+  }
+
   async function handlePrintRoster() {
-    const el = rosterRef.current?.querySelector<HTMLElement>(".section-roster-sheet");
-    if (!el) return toast.error("Roster template not ready.");
+    if (!rosterSection) return;
     try {
-      await printRoster(el);
+      await printRoster(rosterSection, rosterAdviser, rosterStudents, rosterLogoSrc());
     } catch {
       toast.error("Unable to open print preview. Allow pop-ups for this site, or use Download PDF.");
     }
   }
 
   async function handleDownloadPdf() {
-    const el = rosterRef.current?.querySelector<HTMLElement>(".section-roster-sheet");
-    if (!el || !rosterSection) return toast.error("Roster template not ready.");
+    if (!rosterSection) return toast.error("Roster template not ready.");
     setExporting("pdf");
     try {
-      await downloadRosterPdf(el, `${safeSectionFilename(rosterSection)}_class_list.pdf`);
+      await downloadRosterPdf(
+        rosterSection,
+        rosterAdviser,
+        rosterStudents,
+        `${safeSectionFilename(rosterSection)}_section_list.pdf`,
+        rosterLogoSrc(),
+      );
       toast.success("PDF downloaded.");
     } catch {
       toast.error("Unable to generate PDF.");
@@ -1088,15 +1110,14 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
 
   function handleDownloadWord() {
     if (!rosterSection) return;
-    const logoImg = rosterRef.current?.querySelector<HTMLImageElement>(".roster-logo");
-    const logoSrc = logoImg?.src ?? "";
     setExporting("word");
     try {
       downloadRosterWord(
         rosterSection,
+        rosterAdviser,
         rosterStudents,
-        logoSrc,
-        `${safeSectionFilename(rosterSection)}_class_list.doc`,
+        rosterLogoSrc(),
+        `${safeSectionFilename(rosterSection)}_section_list.doc`,
       );
       toast.success("Word document downloaded.");
     } catch {
@@ -1163,30 +1184,54 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
             </Table>
           </div>
 
-          <div className="border-t pt-4 space-y-2">
+          <div className="border-t pt-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <Label className="text-sm font-semibold">Print Section Class Lists</Label>
-              <span className="text-[10px] text-muted-foreground">Click a section to preview A4 template</span>
+              <Label className="text-sm font-semibold">View Section Student Lists</Label>
+              <span className="text-[10px] text-muted-foreground">Select a Grade 12 section to preview the official list</span>
             </div>
             {g12Sections.length === 0 ? (
               <p className="text-xs text-muted-foreground">Add Grade 12 sections in the Manage tab first.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {g12Sections.map((s: any) => {
-                  const count = verified.filter((e: any) => e.assigned_section === s.name).length;
-                  return (
-                    <Button
-                      key={s.id}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setRosterSection(s.name)}
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Grade 12 Section</Label>
+                    <Select
+                      value={rosterSection ?? ""}
+                      onValueChange={(v) => setRosterSection(v || null)}
                     >
-                      <FileText className="h-3.5 w-3.5 mr-1" />
-                      {s.name}
-                      <Badge variant="secondary" className="ml-1.5 text-[10px]">{count}</Badge>
-                    </Button>
-                  );
-                })}
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Select section to view list" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {g12Sections.map((s: any) => (
+                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {g12Sections.map((s: any) => {
+                    const assigned = verified.filter((e: any) => e.assigned_section === s.name);
+                    const maleCount = assigned.filter((e: any) => e.sex === "Male").length;
+                    const femaleCount = assigned.filter((e: any) => e.sex === "Female").length;
+                    return (
+                      <Button
+                        key={s.id}
+                        variant={rosterSection === s.name ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setRosterSection(s.name)}
+                      >
+                        <FileText className="h-3.5 w-3.5 mr-1" />
+                        {s.name}
+                        <Badge variant="secondary" className="ml-1.5 text-[10px]">
+                          M {maleCount} · F {femaleCount}
+                        </Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1194,12 +1239,12 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
       </Card>
 
       <Dialog open={!!rosterSection} onOpenChange={(open) => { if (!open) setRosterSection(null); }}>
-        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle>Class List — {rosterSection}</DialogTitle>
+        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto p-4 sm:p-6 print:hidden">
+          <DialogHeader className="print:hidden">
+            <DialogTitle>Section List — {rosterSection}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4 print:hidden">
             <Button size="sm" onClick={handlePrintRoster}>
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>
@@ -1211,14 +1256,18 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
             </Button>
           </div>
 
-          <p className="text-[11px] text-muted-foreground mb-3">
-            Template is sized for A4 (1 page). For print, turn off browser headers/footers to hide date, title, link, and page number.
-            PDF and Word downloads already exclude those items.
+          <p className="text-[11px] text-muted-foreground mb-3 print:hidden">
+            Official DepEd-style section list on A4. Male students appear on the left, female students on the right.
+            Print and PDF export only the template — not this dashboard.
           </p>
 
           <div ref={rosterRef} className="flex justify-center items-start bg-muted/30 p-3 rounded-lg overflow-auto">
             {rosterSection && (
-              <SectionRosterSheet sectionName={rosterSection} students={rosterStudents} />
+              <SectionRosterSheet
+                sectionName={rosterSection}
+                adviserName={rosterAdviser}
+                students={rosterStudents}
+              />
             )}
           </div>
         </DialogContent>
@@ -1272,6 +1321,17 @@ function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: an
   async function delG12(id: string) {
     const { error } = await supabase.from("grade12_sections").delete().eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Removed."); onRefresh(); }
+  }
+  async function updateG12Adviser(id: string, adviserName: string) {
+    const trimmed = adviserName.trim();
+    const { error } = await supabase
+      .from("grade12_sections")
+      .update({ adviser_name: trimmed || null })
+      .eq("id", id);
+    if (error) { toast.error(error.message); return false; }
+    toast.success("Class adviser updated.");
+    onRefresh();
+    return true;
   }
   async function addVerifier() {
     const name = newVerifier.trim();
@@ -1332,20 +1392,24 @@ function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: an
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Grade 12 Sections</CardTitle>
-          <p className="text-xs text-muted-foreground">Sections you create here are used to assign enrolled students.</p>
+          <p className="text-xs text-muted-foreground">
+            Create sections for assignment and set a class adviser for each. Adviser names appear on printed section lists.
+          </p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
-            <Input value={newG12} onChange={(e) => setNewG12(e.target.value)} placeholder="e.g. STEM 12-A" />
+            <Input value={newG12} onChange={(e) => setNewG12(e.target.value)} placeholder="e.g. ABM 1" />
             <Button onClick={addG12}><Plus className="h-4 w-4" /></Button>
           </div>
-          <div className="space-y-1">
+          <div className="space-y-2">
             {g12Sections.length === 0 && <p className="text-xs text-muted-foreground">No Grade 12 sections yet.</p>}
             {g12Sections.map((s: any) => (
-              <div key={s.id} className="flex items-center justify-between border rounded px-2 py-1.5">
-                <span className="text-sm">{s.name}</span>
-                <Button size="sm" variant="ghost" onClick={() => delG12(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-              </div>
+              <G12SectionRow
+                key={s.id}
+                section={s}
+                onUpdateAdviser={updateG12Adviser}
+                onDelete={delG12}
+              />
             ))}
           </div>
         </CardContent>
@@ -1369,6 +1433,55 @@ function ManageTab({ sections, defaults, g12Sections, verifiers, onRefresh }: an
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function G12SectionRow({
+  section,
+  onUpdateAdviser,
+  onDelete,
+}: {
+  section: { id: string; name: string; adviser_name?: string | null };
+  onUpdateAdviser: (id: string, adviserName: string) => Promise<boolean>;
+  onDelete: (id: string) => void;
+}) {
+  const [adviser, setAdviser] = useState(section.adviser_name ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setAdviser(section.adviser_name ?? "");
+  }, [section.adviser_name]);
+
+  async function saveAdviser() {
+    if (adviser.trim() === (section.adviser_name ?? "").trim()) return;
+    setSaving(true);
+    await onUpdateAdviser(section.id, adviser);
+    setSaving(false);
+  }
+
+  return (
+    <div className="border rounded-md p-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">{section.name}</span>
+        <Button size="sm" variant="ghost" onClick={() => onDelete(section.id)}>
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={adviser}
+          onChange={(e) => setAdviser(e.target.value)}
+          onBlur={saveAdviser}
+          onKeyDown={(e) => { if (e.key === "Enter") saveAdviser(); }}
+          placeholder="Class adviser (e.g. Mr. Mark Baron)"
+          className="h-8 text-xs"
+          disabled={saving}
+        />
+        <Button size="sm" variant="outline" className="h-8" disabled={saving} onClick={saveAdviser}>
+          Save
+        </Button>
+      </div>
     </div>
   );
 }

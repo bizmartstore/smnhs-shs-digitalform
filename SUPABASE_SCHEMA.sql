@@ -83,8 +83,13 @@ create table if not exists public.previous_sections (
 create table if not exists public.grade12_sections (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
+  adviser_name text,
   created_at timestamptz not null default now()
 );
+
+-- Ensure adviser column exists on already-created databases
+alter table public.grade12_sections
+  add column if not exists adviser_name text;
 
 -- 4) Verifiers - maintained by admin in Manage tab
 create table if not exists public.verifiers (

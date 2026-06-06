@@ -1,133 +1,174 @@
 import logo from "@/assets/logo.png";
-import { rosterScale, sortRosterStudents, type RosterStudent } from "@/lib/section-roster";
+import {
+  formatStudentName,
+  rosterScale,
+  splitStudentsBySex,
+  type RosterStudent,
+} from "@/lib/section-roster";
 
 type Props = {
   sectionName: string;
+  adviserName?: string | null;
   students: RosterStudent[];
 };
 
-export function SectionRosterSheet({ sectionName, students }: Props) {
-  const sorted = sortRosterStudents(students);
-  const scale = rosterScale(sorted.length);
+function GenderTable({
+  label,
+  students,
+  minRows,
+  scale,
+}: {
+  label: "MALE" | "FEMALE";
+  students: RosterStudent[];
+  minRows: number;
+  scale: ReturnType<typeof rosterScale>;
+}) {
+  return (
+    <table className="w-full border-collapse table-fixed" style={{ fontSize: scale.fontSize }}>
+      <thead>
+        <tr>
+          <th
+            rowSpan={2}
+            className="border border-black bg-[#ececec] text-center font-bold"
+            style={{ width: "11%", padding: scale.rowPad }}
+          >
+            No.
+          </th>
+          <th
+            className="border border-black bg-[#ececec] text-center font-bold tracking-wide"
+            style={{ padding: scale.rowPad, fontSize: scale.fontSize + 1 }}
+          >
+            {label}
+          </th>
+        </tr>
+        <tr>
+          <th
+            className="border border-black bg-[#ececec] text-center font-semibold"
+            style={{ padding: scale.rowPad - 1, fontSize: scale.fontSize - 0.5 }}
+          >
+            Name of Students (Last Name, Given Name, MI)
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: minRows }, (_, i) => {
+          const student = students[i];
+          return (
+            <tr key={`${label}-${i}`}>
+              <td
+                className="border border-black text-center font-semibold"
+                style={{ padding: scale.rowPad }}
+              >
+                {i + 1}
+              </td>
+              <td
+                className="border border-black truncate"
+                style={{ padding: scale.rowPad }}
+              >
+                {student ? formatStudentName(student) : "\u00A0"}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+export function SectionRosterSheet({ sectionName, adviserName, students }: Props) {
+  const { males, females } = splitStudentsBySex(students);
+  const scale = rosterScale(males.length, females.length);
+  const adviser = adviserName?.trim() || "_________________________";
+  const sectionLabel = sectionName.toUpperCase().startsWith("GRADE")
+    ? sectionName.toUpperCase()
+    : `GRADE 12 – ${sectionName.toUpperCase()}`;
 
   return (
     <div
-      className="section-roster-sheet bg-white text-black shadow-lg"
+      className="section-roster-sheet bg-white text-[#111] shadow-xl ring-1 ring-black/5"
       data-section-name={sectionName}
-      data-students={JSON.stringify(sorted)}
+      data-adviser-name={adviserName ?? ""}
+      data-students={JSON.stringify(students)}
       style={{
         width: "210mm",
         minHeight: "297mm",
         maxHeight: "297mm",
-        padding: "8mm 10mm 6mm",
+        padding: "7mm 9mm 6mm",
         overflow: "hidden",
-        fontFamily: '"Times New Roman", Times, serif',
+        fontFamily: "Arial, Helvetica, sans-serif",
         fontSize: `${scale.fontSize}px`,
-        lineHeight: 1.25,
+        lineHeight: 1.15,
       }}
     >
-      <div className="flex items-start gap-2" style={{ marginBottom: 6 }}>
+      <div className="flex justify-center" style={{ marginBottom: 4 }}>
         <img
           src={logo}
           alt="SMNHS Logo"
-          className="roster-logo shrink-0 object-contain"
+          className="roster-logo object-contain"
           style={{ width: scale.logoSize, height: scale.logoSize }}
         />
-        <div className="flex-1 text-center">
-          <div style={{ fontSize: scale.fontSize - 1 }}>Republic of the Philippines</div>
-          <div style={{ fontSize: scale.fontSize - 1 }}>Department of Education</div>
-          <div
-            className="font-bold uppercase"
-            style={{ fontSize: scale.fontSize + 3 }}
-          >
-            Santa Monica National High School
-          </div>
-          <div style={{ fontSize: scale.fontSize - 1 }}>Puerto Princesa City</div>
-          <div className="font-bold" style={{ fontSize: scale.fontSize, marginTop: 2 }}>
-            Senior High School — Class List
-          </div>
+      </div>
+
+      <div className="text-center" style={{ lineHeight: 1.28, marginBottom: 5 }}>
+        <div
+          style={{
+            fontFamily: '"Times New Roman", Times, serif',
+            fontStyle: "italic",
+            fontSize: scale.fontSize + 1,
+          }}
+        >
+          Republic of the Philippines
+        </div>
+        <div
+          style={{
+            fontFamily: '"Times New Roman", Times, serif',
+            fontWeight: 700,
+            fontSize: scale.fontSize + 4,
+            marginTop: 1,
+          }}
+        >
+          Department of Education
+        </div>
+        <div className="font-semibold" style={{ fontSize: scale.fontSize }}>
+          MIMAROPA Region
+        </div>
+        <div className="font-semibold" style={{ fontSize: scale.fontSize }}>
+          Schools Division of Puerto Princesa City
+        </div>
+        <div
+          className="font-extrabold uppercase tracking-wide"
+          style={{ fontSize: scale.fontSize + 3, marginTop: 2 }}
+        >
+          Santa Monica National High School
         </div>
       </div>
 
-      <div className="text-center" style={{ margin: "4px 0 6px" }}>
-        <div>
-          <span className="font-bold">Section:</span> {sectionName}
-        </div>
-        <div>
-          <span className="font-bold">School Year:</span> 2026–2027 &nbsp;|&nbsp;{" "}
-          <span className="font-bold">Grade Level:</span> 12
-        </div>
-      </div>
+      <div
+        style={{
+          borderTop: "2.5px solid #111",
+          borderBottom: "1px solid #111",
+          height: 5,
+          margin: "5px 0 7px",
+        }}
+      />
 
-      <table
-        className="w-full border-collapse"
-        style={{ fontSize: scale.fontSize }}
+      <div
+        className="text-center font-extrabold uppercase tracking-wide"
+        style={{ fontSize: scale.fontSize + 5, marginBottom: 3 }}
       >
-        <thead>
-          <tr>
-            <th className="border border-black bg-neutral-100 text-center font-bold" style={{ width: "6%", padding: scale.rowPad }}>
-              No.
-            </th>
-            <th className="border border-black bg-neutral-100 text-center font-bold" style={{ width: "34%", padding: scale.rowPad }}>
-              Name of Learner
-            </th>
-            <th className="border border-black bg-neutral-100 text-center font-bold" style={{ width: "22%", padding: scale.rowPad }}>
-              LRN
-            </th>
-            <th className="border border-black bg-neutral-100 text-center font-bold" style={{ width: "8%", padding: scale.rowPad }}>
-              Sex
-            </th>
-            <th className="border border-black bg-neutral-100 text-center font-bold" style={{ width: "30%", padding: scale.rowPad }}>
-              Strand
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="border border-black text-center" style={{ padding: 12 }}>
-                No students assigned.
-              </td>
-            </tr>
-          ) : (
-            sorted.map((s, i) => (
-              <tr key={`${s.last_name}-${s.first_name}-${i}`}>
-                <td className="border border-black text-center" style={{ padding: scale.rowPad }}>
-                  {i + 1}
-                </td>
-                <td className="border border-black" style={{ padding: scale.rowPad }}>
-                  {s.last_name}, {s.first_name}
-                </td>
-                <td className="border border-black text-center font-mono" style={{ padding: scale.rowPad }}>
-                  {s.lrn || "—"}
-                </td>
-                <td className="border border-black text-center" style={{ padding: scale.rowPad }}>
-                  {s.sex || "—"}
-                </td>
-                <td className="border border-black" style={{ padding: scale.rowPad }}>
-                  {s.strand || "—"}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-
-      <div className="font-bold" style={{ marginTop: 4 }}>
-        Total Students: {sorted.length}
+        {sectionLabel}
       </div>
 
-      <div className="flex justify-between" style={{ marginTop: 8, fontSize: scale.fontSize - 1 }}>
-        <div className="text-center" style={{ width: "42%" }}>
-          <div className="border-t border-black font-bold" style={{ marginTop: 28, paddingTop: 3 }}>
-            Class Adviser
-          </div>
-        </div>
-        <div className="text-center" style={{ width: "42%" }}>
-          <div className="border-t border-black font-bold" style={{ marginTop: 28, paddingTop: 3 }}>
-            Registrar / OIC
-          </div>
-        </div>
+      <div
+        className="text-center font-bold"
+        style={{ fontSize: scale.fontSize + 1, marginBottom: 6 }}
+      >
+        <span className="font-extrabold">Class Adviser:</span> {adviser}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <GenderTable label="MALE" students={males} minRows={scale.minRows} scale={scale} />
+        <GenderTable label="FEMALE" students={females} minRows={scale.minRows} scale={scale} />
       </div>
     </div>
   );
