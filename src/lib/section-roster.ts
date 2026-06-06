@@ -1,7 +1,13 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import depedSealUrl from "@/assets/deped-seal.png";
-import footerUrl from "@/assets/roster-footer.png";
+
+export const ROSTER_FOOTER = {
+  address: "South National High-way, Brgy. Sta. Monica, Puerto Princesa City",
+  facebook: "Santa Monica National High School",
+  email: "330506@deped.gov.ph",
+  phones: "+63955-253-1625; +63950-7577-647",
+} as const;
 
 export type RosterStudent = {
   last_name: string;
@@ -64,8 +70,18 @@ function resolveLogoSrc(logoSrc?: string) {
   return logoSrc?.trim() || depedSealUrl;
 }
 
-function resolveFooterSrc(footerSrc?: string) {
-  return footerSrc?.trim() || footerUrl;
+function rosterFooterMarkup() {
+  return `
+    <div class="sheet-footer">
+      <div class="footer-line">${escapeHtml(ROSTER_FOOTER.address)}</div>
+      <div class="footer-line footer-meta">
+        <span>${escapeHtml(ROSTER_FOOTER.facebook)}</span>
+        <span class="footer-dot">&bull;</span>
+        <span>${escapeHtml(ROSTER_FOOTER.email)}</span>
+        <span class="footer-dot">&bull;</span>
+        <span>${escapeHtml(ROSTER_FOOTER.phones)}</span>
+      </div>
+    </div>`;
 }
 
 function rosterStyles(scale: RosterScale) {
@@ -204,14 +220,25 @@ function rosterStyles(scale: RosterScale) {
     .sheet-footer {
       margin-top: auto;
       padding-top: 4px;
+      border-top: 1px solid #ccc;
       flex-shrink: 0;
+      text-align: center;
+      color: #222;
+      line-height: 1.35;
     }
-    .sheet-footer img {
-      display: block;
-      width: 100%;
-      max-height: 46px;
-      object-fit: contain;
-      object-position: center;
+    .footer-line {
+      font-size: 6.5px;
+    }
+    .footer-meta {
+      margin-top: 1px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 2px 6px;
+    }
+    .footer-dot {
+      color: #888;
     }
     @media print {
       html, body { width: 210mm; height: 297mm; }
@@ -257,7 +284,6 @@ function rosterBody(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc: string,
-  footerSrc: string,
   scale: RosterScale,
 ) {
   const { males, females } = splitStudentsBySex(students);
@@ -285,9 +311,7 @@ function rosterBody(
         ${genderTable("MALE", males, scale.minRows)}
         ${genderTable("FEMALE", females, scale.minRows)}
       </div>
-      <div class="sheet-footer">
-        <img class="roster-footer" src="${escapeAttr(footerSrc)}" alt="School contact information" />
-      </div>
+      ${rosterFooterMarkup()}
     </div>`;
 }
 
@@ -296,12 +320,10 @@ export function buildRosterDocument(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
-  footerSrc?: string,
 ) {
   const { males, females } = splitStudentsBySex(students);
   const scale = rosterScale(males.length, females.length);
   const resolvedLogo = resolveLogoSrc(logoSrc);
-  const resolvedFooter = resolveFooterSrc(footerSrc);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -311,7 +333,7 @@ export function buildRosterDocument(
   <style>${rosterStyles(scale)}</style>
 </head>
 <body>
-  ${rosterBody(sectionName, adviserName, students, resolvedLogo, resolvedFooter, scale)}
+  ${rosterBody(sectionName, adviserName, students, resolvedLogo, scale)}
 </body>
 </html>`;
 }
@@ -339,9 +361,8 @@ async function renderRosterCanvas(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
-  footerSrc?: string,
 ) {
-  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
+  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
@@ -389,9 +410,8 @@ export async function printRoster(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
-  footerSrc?: string,
 ) {
-  const doc = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
+  const doc = buildRosterDocument(sectionName, adviserName, students, logoSrc);
   const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
@@ -421,9 +441,8 @@ export async function downloadRosterPdf(
   students: RosterStudent[],
   filename: string,
   logoSrc?: string,
-  footerSrc?: string,
 ) {
-  const canvas = await renderRosterCanvas(sectionName, adviserName, students, logoSrc, footerSrc);
+  const canvas = await renderRosterCanvas(sectionName, adviserName, students, logoSrc);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -438,9 +457,8 @@ export function downloadRosterWord(
   students: RosterStudent[],
   logoSrc: string | undefined,
   filename: string,
-  footerSrc?: string,
 ) {
-  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
+  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc);
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

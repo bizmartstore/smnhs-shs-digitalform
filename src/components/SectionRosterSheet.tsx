@@ -1,7 +1,7 @@
 import depedSeal from "@/assets/deped-seal.png";
-import rosterFooter from "@/assets/roster-footer.png";
 import {
   formatStudentName,
+  ROSTER_FOOTER,
   rosterScale,
   splitStudentsBySex,
   type RosterStudent,
@@ -172,13 +172,21 @@ export function SectionRosterSheet({ sectionName, adviserName, students }: Props
         <GenderTable label="FEMALE" students={females} minRows={scale.minRows} scale={scale} />
       </div>
 
-      <div className="mt-auto shrink-0" style={{ paddingTop: 4 }}>
-        <img
-          src={rosterFooter}
-          alt="School contact information"
-          className="roster-footer mx-auto block w-full object-contain object-center"
-          style={{ maxHeight: 46 }}
-        />
+      <div
+        className="mt-auto shrink-0 border-t border-[#ccc] text-center text-[#222]"
+        style={{ paddingTop: 4, lineHeight: 1.35 }}
+      >
+        <div style={{ fontSize: 6.5 }}>{ROSTER_FOOTER.address}</div>
+        <div
+          className="flex flex-wrap items-center justify-center"
+          style={{ marginTop: 1, fontSize: 6.5, gap: "2px 6px" }}
+        >
+          <span>{ROSTER_FOOTER.facebook}</span>
+          <span className="text-[#888]">&bull;</span>
+          <span>{ROSTER_FOOTER.email}</span>
+          <span className="text-[#888]">&bull;</span>
+          <span>{ROSTER_FOOTER.phones}</span>
+        </div>
       </div>
     </div>
   );
