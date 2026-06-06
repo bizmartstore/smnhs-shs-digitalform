@@ -21,7 +21,15 @@ import { Footer } from "@/components/Footer";
 import { supabase, STAFF_PASSCODE } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
 import { bmiCategory, formatBmi, resolveBmi } from "@/lib/utils";
-import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download, Pencil, Check, X } from "lucide-react";
+import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download, Pencil, Check, X, Printer, FileText, FileType } from "lucide-react";
+import { SectionRosterSheet } from "@/components/SectionRosterSheet";
+import {
+  downloadRosterPdf,
+  downloadRosterWord,
+  printRoster,
+  safeSectionFilename,
+  type RosterStudent,
+} from "@/lib/section-roster";
 
 export const Route = createFileRoute("/staff")({ component: StaffPage });
 
@@ -1018,6 +1026,9 @@ function SigPreview({ title, data }: { title: string; data: any }) {
 /* -------- SECTIONING -------- */
 function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
   const [filter, setFilter] = useState<string>("ALL");
+  const [rosterSection, setRosterSection] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "word" | null>(null);
+  const rosterRef = useRef<HTMLDivElement>(null);
   const verified = enrollments.filter((e: any) => !!e.is_verified);
 
   const filtered = verified.filter((e: any) =>
@@ -1025,6 +1036,18 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
   );
 
   const prevOptions = Array.from(new Set(verified.map((e: any) => e.previous_section).filter(Boolean))) as string[];
+
+  const rosterStudents: RosterStudent[] = rosterSection
+    ? verified
+        .filter((e: any) => e.assigned_section === rosterSection)
+        .map((e: any) => ({
+          last_name: e.last_name,
+          first_name: e.first_name,
+          lrn: e.lrn,
+          sex: e.sex,
+          strand: e.strand,
+        }))
+    : [];
 
   async function assign(id: string, section: string | null) {
     const { error } = await supabase.from("enrollments").update({ assigned_section: section }).eq("id", id);
@@ -1039,63 +1062,168 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
     if (error) toast.error(error.message); else { toast.success(`Assigned ${ids.length} student(s).`); onRefresh(); }
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Grade 12 Sectioning</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Only verified students appear here. Assign Grade 12 sections based on their previous Grade 11 section.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2 items-end">
-          <div className="space-y-1">
-            <Label className="text-xs">Filter by Previous Section</Label>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Previous Sections</SelectItem>
-                {prevOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <BulkAssignButton g12Sections={g12Sections} onAssign={bulkAssign} />
-        </div>
+  async function handlePrintRoster() {
+    const el = rosterRef.current?.querySelector<HTMLElement>(".section-roster-sheet");
+    if (!el) return toast.error("Roster template not ready.");
+    try {
+      await printRoster(el);
+    } catch {
+      toast.error("Unable to open print preview. Allow pop-ups for this site, or use Download PDF.");
+    }
+  }
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Prev. Section</TableHead>
-                <TableHead>Strand</TableHead>
-                <TableHead>Assigned Grade 12 Section</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((e: any) => (
-                <TableRow key={e.id}>
-                  <TableCell>{e.last_name}, {e.first_name}</TableCell>
-                  <TableCell>{e.previous_section}</TableCell>
-                  <TableCell>{e.strand}</TableCell>
-                  <TableCell>
-                    <Select value={e.assigned_section ?? ""} onValueChange={(v) => assign(e.id, v || null)}>
-                      <SelectTrigger className="w-56"><SelectValue placeholder="— Unassigned —" /></SelectTrigger>
-                      <SelectContent>
-                        {g12Sections.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
+  async function handleDownloadPdf() {
+    const el = rosterRef.current?.querySelector<HTMLElement>(".section-roster-sheet");
+    if (!el || !rosterSection) return toast.error("Roster template not ready.");
+    setExporting("pdf");
+    try {
+      await downloadRosterPdf(el, `${safeSectionFilename(rosterSection)}_class_list.pdf`);
+      toast.success("PDF downloaded.");
+    } catch {
+      toast.error("Unable to generate PDF.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  function handleDownloadWord() {
+    if (!rosterSection) return;
+    const logoImg = rosterRef.current?.querySelector<HTMLImageElement>(".roster-logo");
+    const logoSrc = logoImg?.src ?? "";
+    setExporting("word");
+    try {
+      downloadRosterWord(
+        rosterSection,
+        rosterStudents,
+        logoSrc,
+        `${safeSectionFilename(rosterSection)}_class_list.doc`,
+      );
+      toast.success("Word document downloaded.");
+    } catch {
+      toast.error("Unable to generate Word document.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Grade 12 Sectioning</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Only verified students appear here. Assign Grade 12 sections based on their previous Grade 11 section.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Filter by Previous Section</Label>
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Previous Sections</SelectItem>
+                  {prevOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <BulkAssignButton g12Sections={g12Sections} onAssign={bulkAssign} />
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Prev. Section</TableHead>
+                  <TableHead>Strand</TableHead>
+                  <TableHead>Assigned Grade 12 Section</TableHead>
                 </TableRow>
-              ))}
-              {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No students.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((e: any) => (
+                  <TableRow key={e.id}>
+                    <TableCell>{e.last_name}, {e.first_name}</TableCell>
+                    <TableCell>{e.previous_section}</TableCell>
+                    <TableCell>{e.strand}</TableCell>
+                    <TableCell>
+                      <Select value={e.assigned_section ?? ""} onValueChange={(v) => assign(e.id, v || null)}>
+                        <SelectTrigger className="w-56"><SelectValue placeholder="— Unassigned —" /></SelectTrigger>
+                        <SelectContent>
+                          {g12Sections.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No students.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="border-t pt-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm font-semibold">Print Section Class Lists</Label>
+              <span className="text-[10px] text-muted-foreground">Click a section to preview A4 template</span>
+            </div>
+            {g12Sections.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Add Grade 12 sections in the Manage tab first.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {g12Sections.map((s: any) => {
+                  const count = verified.filter((e: any) => e.assigned_section === s.name).length;
+                  return (
+                    <Button
+                      key={s.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRosterSection(s.name)}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      {s.name}
+                      <Badge variant="secondary" className="ml-1.5 text-[10px]">{count}</Badge>
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!rosterSection} onOpenChange={(open) => { if (!open) setRosterSection(null); }}>
+        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Class List — {rosterSection}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button size="sm" onClick={handlePrintRoster}>
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDownloadPdf} disabled={exporting === "pdf"}>
+              <Download className="h-4 w-4 mr-1" /> {exporting === "pdf" ? "Generating…" : "Download PDF"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDownloadWord} disabled={exporting === "word"}>
+              <FileType className="h-4 w-4 mr-1" /> {exporting === "word" ? "Generating…" : "Download Word"}
+            </Button>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Template is sized for A4 (1 page). For print, turn off browser headers/footers to hide date, title, link, and page number.
+            PDF and Word downloads already exclude those items.
+          </p>
+
+          <div ref={rosterRef} className="flex justify-center items-start bg-muted/30 p-3 rounded-lg overflow-auto">
+            {rosterSection && (
+              <SectionRosterSheet sectionName={rosterSection} students={rosterStudents} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
