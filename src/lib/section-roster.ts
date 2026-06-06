@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
-import logoUrl from "@/assets/logo.png";
+import depedSealUrl from "@/assets/deped-seal.png";
+import footerUrl from "@/assets/roster-footer.png";
 
 export type RosterStudent = {
   last_name: string;
@@ -60,7 +61,11 @@ function escapeAttr(value: string) {
 }
 
 function resolveLogoSrc(logoSrc?: string) {
-  return logoSrc?.trim() || logoUrl;
+  return logoSrc?.trim() || depedSealUrl;
+}
+
+function resolveFooterSrc(footerSrc?: string) {
+  return footerSrc?.trim() || footerUrl;
 }
 
 function rosterStyles(scale: RosterScale) {
@@ -196,6 +201,18 @@ function rosterStyles(scale: RosterScale) {
       text-overflow: ellipsis;
     }
     td.empty { color: transparent; }
+    .sheet-footer {
+      margin-top: auto;
+      padding-top: 4px;
+      flex-shrink: 0;
+    }
+    .sheet-footer img {
+      display: block;
+      width: 100%;
+      max-height: 46px;
+      object-fit: contain;
+      object-position: center;
+    }
     @media print {
       html, body { width: 210mm; height: 297mm; }
       .sheet { page-break-after: avoid; page-break-inside: avoid; }
@@ -240,6 +257,7 @@ function rosterBody(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc: string,
+  footerSrc: string,
   scale: RosterScale,
 ) {
   const { males, females } = splitStudentsBySex(students);
@@ -251,7 +269,7 @@ function rosterBody(
   return `
     <div class="sheet">
       <div class="logo-wrap">
-        <img class="logo roster-logo" src="${escapeAttr(logoSrc)}" alt="SMNHS Logo" />
+        <img class="logo roster-logo" src="${escapeAttr(logoSrc)}" alt="DepEd Seal" />
       </div>
       <div class="gov-header">
         <div class="rep">Republic of the Philippines</div>
@@ -267,6 +285,9 @@ function rosterBody(
         ${genderTable("MALE", males, scale.minRows)}
         ${genderTable("FEMALE", females, scale.minRows)}
       </div>
+      <div class="sheet-footer">
+        <img class="roster-footer" src="${escapeAttr(footerSrc)}" alt="School contact information" />
+      </div>
     </div>`;
 }
 
@@ -275,10 +296,12 @@ export function buildRosterDocument(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
+  footerSrc?: string,
 ) {
   const { males, females } = splitStudentsBySex(students);
   const scale = rosterScale(males.length, females.length);
   const resolvedLogo = resolveLogoSrc(logoSrc);
+  const resolvedFooter = resolveFooterSrc(footerSrc);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -288,9 +311,27 @@ export function buildRosterDocument(
   <style>${rosterStyles(scale)}</style>
 </head>
 <body>
-  ${rosterBody(sectionName, adviserName, students, resolvedLogo, scale)}
+  ${rosterBody(sectionName, adviserName, students, resolvedLogo, resolvedFooter, scale)}
 </body>
 </html>`;
+}
+
+async function waitForImages(doc: Document) {
+  const images = Array.from(doc.querySelectorAll<HTMLImageElement>("img"));
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+          setTimeout(resolve, 1200);
+        }),
+    ),
+  );
 }
 
 async function renderRosterCanvas(
@@ -298,8 +339,9 @@ async function renderRosterCanvas(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
+  footerSrc?: string,
 ) {
-  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc);
+  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
@@ -320,20 +362,7 @@ async function renderRosterCanvas(
   doc.write(html);
   doc.close();
 
-  await new Promise<void>((resolve) => {
-    const img = doc.querySelector<HTMLImageElement>(".roster-logo");
-    if (!img) {
-      resolve();
-      return;
-    }
-    if (img.complete) {
-      resolve();
-      return;
-    }
-    img.addEventListener("load", () => resolve(), { once: true });
-    img.addEventListener("error", () => resolve(), { once: true });
-    setTimeout(resolve, 1200);
-  });
+  await waitForImages(doc);
 
   const sheet = doc.querySelector<HTMLElement>(".sheet");
   if (!sheet) {
@@ -360,8 +389,9 @@ export async function printRoster(
   adviserName: string | null | undefined,
   students: RosterStudent[],
   logoSrc?: string,
+  footerSrc?: string,
 ) {
-  const doc = buildRosterDocument(sectionName, adviserName, students, logoSrc);
+  const doc = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
   const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
@@ -391,8 +421,9 @@ export async function downloadRosterPdf(
   students: RosterStudent[],
   filename: string,
   logoSrc?: string,
+  footerSrc?: string,
 ) {
-  const canvas = await renderRosterCanvas(sectionName, adviserName, students, logoSrc);
+  const canvas = await renderRosterCanvas(sectionName, adviserName, students, logoSrc, footerSrc);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -407,8 +438,9 @@ export function downloadRosterWord(
   students: RosterStudent[],
   logoSrc: string | undefined,
   filename: string,
+  footerSrc?: string,
 ) {
-  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc);
+  const html = buildRosterDocument(sectionName, adviserName, students, logoSrc, footerSrc);
   const blob = new Blob(["\ufeff", html], { type: "application/msword" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

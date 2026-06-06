@@ -1,4 +1,5 @@
-import logo from "@/assets/logo.png";
+import depedSeal from "@/assets/deped-seal.png";
+import rosterFooter from "@/assets/roster-footer.png";
 import {
   formatStudentName,
   rosterScale,
@@ -85,7 +86,7 @@ export function SectionRosterSheet({ sectionName, adviserName, students }: Props
 
   return (
     <div
-      className="section-roster-sheet bg-white text-[#111] shadow-xl ring-1 ring-black/5"
+      className="section-roster-sheet bg-white text-[#111] shadow-xl ring-1 ring-black/5 flex flex-col"
       data-section-name={sectionName}
       data-adviser-name={adviserName ?? ""}
       data-students={JSON.stringify(students)}
@@ -102,8 +103,8 @@ export function SectionRosterSheet({ sectionName, adviserName, students }: Props
     >
       <div className="flex justify-center" style={{ marginBottom: 4 }}>
         <img
-          src={logo}
-          alt="SMNHS Logo"
+          src={depedSeal}
+          alt="DepEd Seal"
           className="roster-logo object-contain"
           style={{ width: scale.logoSize, height: scale.logoSize }}
         />
@@ -166,9 +167,18 @@ export function SectionRosterSheet({ sectionName, adviserName, students }: Props
         <span className="font-extrabold">Class Adviser:</span> {adviser}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
         <GenderTable label="MALE" students={males} minRows={scale.minRows} scale={scale} />
         <GenderTable label="FEMALE" students={females} minRows={scale.minRows} scale={scale} />
+      </div>
+
+      <div className="mt-auto shrink-0" style={{ paddingTop: 4 }}>
+        <img
+          src={rosterFooter}
+          alt="School contact information"
+          className="roster-footer mx-auto block w-full object-contain object-center"
+          style={{ maxHeight: 46 }}
+        />
       </div>
     </div>
   );

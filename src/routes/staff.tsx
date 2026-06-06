@@ -1014,10 +1014,20 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
     return rosterRef.current?.querySelector<HTMLImageElement>(".roster-logo")?.src ?? "";
   }
 
+  function rosterFooterSrc() {
+    return rosterRef.current?.querySelector<HTMLImageElement>(".roster-footer")?.src ?? "";
+  }
+
   async function handlePrintRoster() {
     if (!rosterSection) return;
     try {
-      await printRoster(rosterSection, rosterAdviser, rosterStudents, rosterLogoSrc());
+      await printRoster(
+        rosterSection,
+        rosterAdviser,
+        rosterStudents,
+        rosterLogoSrc(),
+        rosterFooterSrc(),
+      );
     } catch {
       toast.error("Unable to open print preview. Allow pop-ups for this site, or use Download PDF.");
     }
@@ -1033,6 +1043,7 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
         rosterStudents,
         `${safeSectionFilename(rosterSection)}_section_list.pdf`,
         rosterLogoSrc(),
+        rosterFooterSrc(),
       );
       toast.success("PDF downloaded.");
     } catch {
@@ -1052,6 +1063,7 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
         rosterStudents,
         rosterLogoSrc(),
         `${safeSectionFilename(rosterSection)}_section_list.doc`,
+        rosterFooterSrc(),
       );
       toast.success("Word document downloaded.");
     } catch {
