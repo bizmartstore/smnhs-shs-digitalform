@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -158,7 +158,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       .select(ENROLLMENT_COLS)
       .order("created_at", { ascending: false });
 
-    if (!primary.error) return primary.data ?? [];
+    if (!primary.error) {
+      return (primary.data ?? []).map((row: any) => ({
+        ...row,
+        bmi: resolveBmi(row),
+      }));
+    }
 
     if (!isMissingEnrollmentColumn(primary.error.message)) throw primary.error;
 
@@ -837,9 +842,8 @@ function EnrollmentDetail({ data, onSave }: { data: any; onSave?: (payload: Reco
   }, [data, editableEntries]);
 
   const displayValue = (key: string, value: any) => {
-    if (key === "bmi" && value != null && value !== "") {
-      const n = Number(value);
-      return Number.isFinite(n) ? `${n.toFixed(1)} kg/m² (${bmiCategory(n)})` : String(value);
+    if (key === "bmi") {
+      return bmi != null ? `${bmi.toFixed(1)} kg/m² (${bmiCategory(bmi)})` : "—";
     }
     if (["doc_sf9", "doc_psa", "doc_other", "doc_cor", "doc_a5", "certified", "is_verified"].includes(key)) {
       return value ? "YES" : "NO";
@@ -1243,20 +1247,14 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
   const [viewLoading, setViewLoading] = useState(false);
   const verified = enrollments.filter((e: any) => !!e.is_verified);
 
-  const prevOptions = Array.from(
-    new Set(verified.map((e: any) => e.previous_section).filter(Boolean)),
-  ) as string[];
-
   const filtered = useMemo(() => {
     const search = q.trim().toLowerCase();
     return verified.filter((e: any) => {
       let sectionMatch = true;
-      if (sectionFilter !== "ALL") {
-        if (sectionFilter.startsWith("P:")) {
-          sectionMatch = (e.previous_section ?? "") === sectionFilter.slice(2);
-        } else if (sectionFilter.startsWith("A:")) {
-          sectionMatch = (e.assigned_section ?? "") === sectionFilter.slice(2);
-        }
+      if (sectionFilter === "UNASSIGNED") {
+        sectionMatch = !e.assigned_section;
+      } else if (sectionFilter !== "ALL") {
+        sectionMatch = (e.assigned_section ?? "") === sectionFilter;
       }
       const nameMatch =
         !search ||
@@ -1311,7 +1309,7 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
       <CardHeader>
         <CardTitle className="text-base">Student Details &amp; BMI</CardTitle>
         <p className="text-xs text-muted-foreground">
-          View verified student information including height, weight, and BMI. Filter by previous or assigned Grade 12 section.
+          View verified student information including height, weight, and BMI. Filter by assigned Grade 12 section.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1326,27 +1324,15 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Filter by Section</Label>
+            <Label className="text-xs">Filter by Assigned Section</Label>
             <Select value={sectionFilter} onValueChange={setSectionFilter}>
               <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">All Sections</SelectItem>
-                {prevOptions.length > 0 && (
-                  <SelectGroup>
-                    <SelectLabel>Previous (Grade 11)</SelectLabel>
-                    {prevOptions.map((s) => (
-                      <SelectItem key={`P:${s}`} value={`P:${s}`}>{s}</SelectItem>
-                    ))}
-                  </SelectGroup>
-                )}
-                {g12Sections.length > 0 && (
-                  <SelectGroup>
-                    <SelectLabel>Assigned (Grade 12)</SelectLabel>
-                    {g12Sections.map((s: any) => (
-                      <SelectItem key={`A:${s.name}`} value={`A:${s.name}`}>{s.name}</SelectItem>
-                    ))}
-                  </SelectGroup>
-                )}
+                <SelectItem value="ALL">All Assigned Sections</SelectItem>
+                <SelectItem value="UNASSIGNED">Unassigned</SelectItem>
+                {g12Sections.map((s: any) => (
+                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

@@ -5,11 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function computeBmi(height_m: unknown, weight_kg: unknown): number | null {
+export function normalizeHeightMeters(height_m: unknown): number | null {
   const h = Number(height_m);
+  if (!Number.isFinite(h) || h <= 0) return null;
+  // Values above 3 are almost certainly centimeters (e.g. 165 cm entered in the meters field).
+  if (h > 3) return h / 100;
+  return h;
+}
+
+export function computeBmi(height_m: unknown, weight_kg: unknown): number | null {
+  const h = normalizeHeightMeters(height_m);
   const w = Number(weight_kg);
-  if (!h || !w || h <= 0 || w <= 0) return null;
-  return w / (h * h);
+  if (!h || !w || w <= 0) return null;
+  const bmi = w / (h * h);
+  if (!Number.isFinite(bmi) || bmi < 1 || bmi > 80) return null;
+  return bmi;
 }
 
 export function bmiCategory(bmi: number): string {
@@ -28,9 +38,12 @@ export function resolveBmi(row: {
   height_m?: unknown;
   weight_kg?: unknown;
 }): number | null {
+  const computed = computeBmi(row.height_m, row.weight_kg);
+  if (computed != null) return roundBmi(computed);
+
   const stored = Number(row.bmi);
-  if (Number.isFinite(stored) && stored > 0) return stored;
-  return computeBmi(row.height_m, row.weight_kg);
+  if (Number.isFinite(stored) && stored >= 10 && stored <= 80) return roundBmi(stored);
+  return null;
 }
 
 export function formatBmi(bmi: number): string {
