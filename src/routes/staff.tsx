@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -961,6 +961,23 @@ function SigPreview({ title, data }: { title: string; data: any }) {
 
 /* -------- SECTIONING -------- */
 function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
+  return (
+    <Tabs defaultValue="assign" className="space-y-4">
+      <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsTrigger value="assign">Assign Sections</TabsTrigger>
+        <TabsTrigger value="details">Student Details</TabsTrigger>
+      </TabsList>
+      <TabsContent value="assign">
+        <SectioningAssignPanel enrollments={enrollments} g12Sections={g12Sections} onRefresh={onRefresh} />
+      </TabsContent>
+      <TabsContent value="details">
+        <SectioningStudentDetailsPanel enrollments={enrollments} g12Sections={g12Sections} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function SectioningAssignPanel({ enrollments, g12Sections, onRefresh }: any) {
   const [filter, setFilter] = useState<string>("ALL");
   const [q, setQ] = useState("");
   const [rosterSection, setRosterSection] = useState<string | null>(null);
@@ -1216,6 +1233,194 @@ function SectioningTab({ enrollments, g12Sections, onRefresh }: any) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
+  const [q, setQ] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("ALL");
+  const [view, setView] = useState<any | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
+  const verified = enrollments.filter((e: any) => !!e.is_verified);
+
+  const prevOptions = Array.from(
+    new Set(verified.map((e: any) => e.previous_section).filter(Boolean)),
+  ) as string[];
+
+  const filtered = useMemo(() => {
+    const search = q.trim().toLowerCase();
+    return verified.filter((e: any) => {
+      let sectionMatch = true;
+      if (sectionFilter !== "ALL") {
+        if (sectionFilter.startsWith("P:")) {
+          sectionMatch = (e.previous_section ?? "") === sectionFilter.slice(2);
+        } else if (sectionFilter.startsWith("A:")) {
+          sectionMatch = (e.assigned_section ?? "") === sectionFilter.slice(2);
+        }
+      }
+      const nameMatch =
+        !search ||
+        [
+          e.last_name,
+          e.first_name,
+          e.middle_name,
+          e.lrn,
+          e.control_no,
+          `smnhs-${String(e.control_no ?? "").padStart(5, "0")}`,
+        ].some((v) => String(v ?? "").toLowerCase().includes(search));
+      return sectionMatch && nameMatch;
+    });
+  }, [verified, q, sectionFilter]);
+
+  async function openStudentDetails(student: any) {
+    setView(student);
+    setViewLoading(true);
+    const primary = await supabase
+      .from("enrollments")
+      .select(DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+
+    if (!primary.error) {
+      setView(primary.data ?? student);
+      setViewLoading(false);
+      return;
+    }
+
+    if (!isMissingEnrollmentColumn(primary.error.message)) {
+      toast.error(primary.error.message);
+      setViewLoading(false);
+      return;
+    }
+
+    const fallback = await supabase
+      .from("enrollments")
+      .select(LEGACY_DETAIL_ENROLLMENT_COLS)
+      .eq("id", student.id)
+      .single();
+    if (fallback.error) toast.error(fallback.error.message);
+    else {
+      const detailRow = (fallback.data ?? student) as any;
+      setView({ ...detailRow, bmi: resolveBmi(detailRow), is_verified: false, assigned_section: null });
+    }
+    setViewLoading(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Student Details &amp; BMI</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          View verified student information including height, weight, and BMI. Filter by previous or assigned Grade 12 section.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="space-y-1">
+            <Label className="text-xs">Search</Label>
+            <Input
+              placeholder="Search name, LRN, control no…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="w-64"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Filter by Section</Label>
+            <Select value={sectionFilter} onValueChange={setSectionFilter}>
+              <SelectTrigger className="w-64"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Sections</SelectItem>
+                {prevOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Previous (Grade 11)</SelectLabel>
+                    {prevOptions.map((s) => (
+                      <SelectItem key={`P:${s}`} value={`P:${s}`}>{s}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {g12Sections.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Assigned (Grade 12)</SelectLabel>
+                    {g12Sections.map((s: any) => (
+                      <SelectItem key={`A:${s.name}`} value={`A:${s.name}`}>{s.name}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="text-xs text-muted-foreground pb-2">{filtered.length} student(s)</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>LRN</TableHead>
+                <TableHead>Prev. Section</TableHead>
+                <TableHead>Assigned Section</TableHead>
+                <TableHead>Height (m)</TableHead>
+                <TableHead>Weight (kg)</TableHead>
+                <TableHead>BMI</TableHead>
+                <TableHead>Strand</TableHead>
+                <TableHead className="w-12">View</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((e: any) => {
+                const bmiVal = resolveBmi(e);
+                return (
+                  <TableRow key={e.id}>
+                    <TableCell className="font-medium">{e.last_name}, {e.first_name}</TableCell>
+                    <TableCell className="font-mono text-xs">{e.lrn || "—"}</TableCell>
+                    <TableCell>{e.previous_section || "—"}</TableCell>
+                    <TableCell>
+                      {e.assigned_section ? <Badge variant="secondary">{e.assigned_section}</Badge> : "—"}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-xs">{e.height_m ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{e.weight_kg ?? "—"}</TableCell>
+                    <TableCell className="text-xs tabular-nums">
+                      {bmiVal != null ? (
+                        <span>
+                          <span className="font-medium">{formatBmi(bmiVal)}</span>
+                          <span className="text-muted-foreground ml-1">({bmiCategory(bmiVal)})</span>
+                        </span>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell>{e.strand || "—"}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="ghost" onClick={() => openStudentDetails(e)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    No students match your search or filter.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+
+      <Dialog open={!!view} onOpenChange={(open) => !open && setView(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Student Details</DialogTitle></DialogHeader>
+          {viewLoading ? (
+            <p className="text-sm text-muted-foreground">Loading student details…</p>
+          ) : view ? (
+            <EnrollmentDetail data={view} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 
