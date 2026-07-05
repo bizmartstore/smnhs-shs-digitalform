@@ -20,7 +20,7 @@ import { SchoolHeader } from "@/components/SchoolHeader";
 import { Footer } from "@/components/Footer";
 import { supabase, STAFF_PASSCODE } from "@/lib/supabase";
 import { DEFAULT_PREVIOUS_SECTIONS } from "@/lib/sections";
-import { bmiCategory, formatBmi, resolveBmi } from "@/lib/utils";
+import { bmiCategory, formatAgeYearsMonths, formatBirthdate, formatHeightMeters, formatHeightMetersSquared, formatBmi, resolveBmi } from "@/lib/utils";
 import { Lock, Users, BookOpen, BarChart3, Plus, Trash2, Eye, LogOut, Download, Pencil, Check, X, Printer, FileText, FileType } from "lucide-react";
 import { SectionRosterSheet } from "@/components/SectionRosterSheet";
 import {
@@ -58,8 +58,8 @@ const BASE_ENROLLMENT_COLS = [
 
 const DASHBOARD_ENROLLMENT_COLS = [
   "id","control_no","created_at",
-  "last_name","first_name","lrn","sex","contact_number",
-  "previous_section","track","strand","height_m","weight_kg",
+  "last_name","first_name","lrn","sex","age","contact_number",
+  "date_of_birth","previous_section","track","strand","height_m","weight_kg",
   "doc_sf9","doc_psa","doc_other","other_documents","doc_cor","doc_a5",
 ];
 
@@ -1243,8 +1243,6 @@ function SectioningAssignPanel({ enrollments, g12Sections, onRefresh }: any) {
 function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
   const [q, setQ] = useState("");
   const [sectionFilter, setSectionFilter] = useState("ALL");
-  const [view, setView] = useState<any | null>(null);
-  const [viewLoading, setViewLoading] = useState(false);
   const verified = enrollments.filter((e: any) => !!e.is_verified);
 
   const filtered = useMemo(() => {
@@ -1270,46 +1268,12 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
     });
   }, [verified, q, sectionFilter]);
 
-  async function openStudentDetails(student: any) {
-    setView(student);
-    setViewLoading(true);
-    const primary = await supabase
-      .from("enrollments")
-      .select(DETAIL_ENROLLMENT_COLS)
-      .eq("id", student.id)
-      .single();
-
-    if (!primary.error) {
-      setView(primary.data ?? student);
-      setViewLoading(false);
-      return;
-    }
-
-    if (!isMissingEnrollmentColumn(primary.error.message)) {
-      toast.error(primary.error.message);
-      setViewLoading(false);
-      return;
-    }
-
-    const fallback = await supabase
-      .from("enrollments")
-      .select(LEGACY_DETAIL_ENROLLMENT_COLS)
-      .eq("id", student.id)
-      .single();
-    if (fallback.error) toast.error(fallback.error.message);
-    else {
-      const detailRow = (fallback.data ?? student) as any;
-      setView({ ...detailRow, bmi: resolveBmi(detailRow), is_verified: false, assigned_section: null });
-    }
-    setViewLoading(false);
-  }
-
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Student Details &amp; BMI</CardTitle>
         <p className="text-xs text-muted-foreground">
-          View verified student information including height, weight, and BMI. Filter by assigned Grade 12 section.
+          Verified students with health metrics. Height is auto-converted to meters. Filter by assigned Grade 12 section.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1345,48 +1309,45 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>LRN</TableHead>
-                <TableHead>Prev. Section</TableHead>
                 <TableHead>Assigned Section</TableHead>
-                <TableHead>Height (m)</TableHead>
+                <TableHead>Birthdate</TableHead>
                 <TableHead>Weight (kg)</TableHead>
+                <TableHead>Height (m)</TableHead>
+                <TableHead>Height² (m²)</TableHead>
+                <TableHead>Age (Y, M)</TableHead>
                 <TableHead>BMI</TableHead>
-                <TableHead>Strand</TableHead>
-                <TableHead className="w-12">View</TableHead>
+                <TableHead>Nutritional Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((e: any) => {
                 const bmiVal = resolveBmi(e);
+                const heightM = formatHeightMeters(e.height_m);
+                const heightM2 = formatHeightMetersSquared(e.height_m);
                 return (
                   <TableRow key={e.id}>
                     <TableCell className="font-medium">{e.last_name}, {e.first_name}</TableCell>
                     <TableCell className="font-mono text-xs">{e.lrn || "—"}</TableCell>
-                    <TableCell>{e.previous_section || "—"}</TableCell>
                     <TableCell>
                       {e.assigned_section ? <Badge variant="secondary">{e.assigned_section}</Badge> : "—"}
                     </TableCell>
-                    <TableCell className="tabular-nums text-xs">{e.height_m ?? "—"}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{formatBirthdate(e.date_of_birth)}</TableCell>
                     <TableCell className="tabular-nums text-xs">{e.weight_kg ?? "—"}</TableCell>
-                    <TableCell className="text-xs tabular-nums">
-                      {bmiVal != null ? (
-                        <span>
-                          <span className="font-medium">{formatBmi(bmiVal)}</span>
-                          <span className="text-muted-foreground ml-1">({bmiCategory(bmiVal)})</span>
-                        </span>
-                      ) : "—"}
+                    <TableCell className="tabular-nums text-xs">{heightM ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{heightM2 ?? "—"}</TableCell>
+                    <TableCell className="tabular-nums text-xs whitespace-nowrap">{formatAgeYearsMonths(e)}</TableCell>
+                    <TableCell className="tabular-nums text-xs font-medium">
+                      {bmiVal != null ? bmiVal.toFixed(1) : "—"}
                     </TableCell>
-                    <TableCell>{e.strand || "—"}</TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="ghost" onClick={() => openStudentDetails(e)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                    <TableCell className="text-xs">
+                      {bmiVal != null ? bmiCategory(bmiVal) : "—"}
                     </TableCell>
                   </TableRow>
                 );
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     No students match your search or filter.
                   </TableCell>
                 </TableRow>
@@ -1395,17 +1356,6 @@ function SectioningStudentDetailsPanel({ enrollments, g12Sections }: any) {
           </Table>
         </div>
       </CardContent>
-
-      <Dialog open={!!view} onOpenChange={(open) => !open && setView(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Student Details</DialogTitle></DialogHeader>
-          {viewLoading ? (
-            <p className="text-sm text-muted-foreground">Loading student details…</p>
-          ) : view ? (
-            <EnrollmentDetail data={view} />
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
